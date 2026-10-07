@@ -1,0 +1,42 @@
+# ==============================================================================
+# Git Ignore - Standalone Backend Repository
+# ==============================================================================
+
+# Environment & Secrets
+.env
+.env.local
+.env.development
+.env.production
+!.env.example
+
+# Python Bytecode & Virtual Environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+env/
+venv/
+ENV/
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build & Dist
+build/
+dist/
+*.egg-info/
+
+# Local Media / User Receipts
+media/receipts/*
+!media/receipts/.gitkeep
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

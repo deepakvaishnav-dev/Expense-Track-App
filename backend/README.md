@@ -3,6 +3,7 @@
 This is the production-ready REST API service powering **Expense Tracker AI**, built using Python FastAPI, PostgreSQL (SQLAlchemy), and Google Gemini 2.0 Flash.
 
 ## Core Stack
+
 - **Framework**: FastAPI (asyncpg)
 - **Database**: PostgreSQL (SQLAlchemy + Alembic)
 - **AI Integration**: Google Gemini 2.0 Flash (structured output APIs)
@@ -13,7 +14,9 @@ This is the production-ready REST API service powering **Expense Tracker AI**, b
 ## Getting Started
 
 ### Local Setup
+
 1. **Create virtual environment & Install dependencies**:
+
    ```bash
    python -m venv .venv
    # Windows:
@@ -23,6 +26,7 @@ This is the production-ready REST API service powering **Expense Tracker AI**, b
 
 2. **Configure environment variables**:
    Create a `.env` file in the `backend/` directory:
+
    ```env
    DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/expense_tracker
    SECRET_KEY=generate-a-secure-random-key-here
@@ -32,11 +36,13 @@ This is the production-ready REST API service powering **Expense Tracker AI**, b
    ```
 
 3. **Database migrations**:
+
    ```bash
    alembic upgrade head
    ```
 
 4. **Seed database with test data**:
+
    ```bash
    python -m app.db.seed
    ```
@@ -48,7 +54,9 @@ This is the production-ready REST API service powering **Expense Tracker AI**, b
    API Docs will be available at `http://localhost:8000/docs`.
 
 ### Docker Setup
+
 To spin up both the FastAPI backend and PostgreSQL database:
+
 ```bash
 docker-compose up --build
 ```
@@ -56,14 +64,18 @@ docker-compose up --build
 ---
 
 ## Security Details
+
 To protect user privacy, bank accounts, balances, and transaction reference numbers are encrypted at the column level.
+
 - Symmetrical key-derivation is done from `ENCRYPTION_KEY` using SHA256.
 - Database entries for `accounts.name`, `accounts.balance` and `transactions.ref_number` are stored in encrypted string formats but decrypted transparently on retrieval.
 
 ---
 
 ## Testing
+
 Run unit tests within the virtual environment:
+
 ```bash
 pytest
 ```
