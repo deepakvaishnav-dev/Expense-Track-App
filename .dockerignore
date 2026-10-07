@@ -1,0 +1,28 @@
+# ==============================================================================
+# Docker Ignore - Root Context
+# ==============================================================================
+
+.git
+.gitignore
+.vscode
+.agent
+.agents
+.gemini
+
+# Frontend (Frontend is bundled / built separately)
+frontend/node_modules
+frontend/.expo
+frontend/web-build
+
+# Backend Python
+backend/.venv
+backend/__pycache__
+backend/.pytest_cache
+backend/tests
+backend/media/receipts/*
+!backend/media/receipts/.gitkeep
+
+# Secrets
+.env
+backend/.env
+frontend/.env

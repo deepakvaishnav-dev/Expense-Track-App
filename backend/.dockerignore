@@ -1,0 +1,41 @@
+# ==============================================================================
+# Docker Ignore - FastAPI Backend Service
+# ==============================================================================
+
+# Git & IDE
+.git
+.gitignore
+.vscode
+.idea
+
+# Python Bytecode & Virtual Environments
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.venv
+venv
+env
+*.egg-info
+dist
+build
+
+# Testing & Cache
+.pytest_cache
+.coverage
+htmlcov
+tests
+
+# Secrets & Environment (Should be passed via docker-compose / runtime secrets)
+.env
+.env.*
+!.env.example
+
+# Documentation & Scratch Files
+README.md
+docs
+*.log
+
+# Media Uploads (Keep folder structure via gitkeep/mkdir)
+media/receipts/*
+!media/receipts/.gitkeep
