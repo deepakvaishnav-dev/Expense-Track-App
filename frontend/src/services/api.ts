@@ -9,11 +9,15 @@ const getApiBaseUrl = () => {
   // 1. Check if configured via .env (using standard Expo EXPO_PUBLIC_ prefix)
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
   if (envUrl) {
-    // On Android Emulator, map localhost / 127.0.0.1 to 10.0.2.2 for loopback access
-    if (Platform.OS === 'android' && (envUrl.includes('localhost') || envUrl.includes('127.0.0.1'))) {
-      return envUrl.replace('localhost', '10.0.2.2').replace('127.0.0.1', '10.0.2.2');
+    let resolved = envUrl.trim().replace(/\/+$/, '');
+    if (!resolved.endsWith('/api')) {
+      resolved = `${resolved}/api`;
     }
-    return envUrl;
+    // On Android Emulator, map localhost / 127.0.0.1 to 10.0.2.2 for loopback access
+    if (Platform.OS === 'android' && (resolved.includes('localhost') || resolved.includes('127.0.0.1'))) {
+      return resolved.replace('localhost', '10.0.2.2').replace('127.0.0.1', '10.0.2.2');
+    }
+    return resolved;
   }
 
   // 2. If running in a web browser, connect to the hostname of the current page
