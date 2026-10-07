@@ -1,6 +1,6 @@
 import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, model_validator
+from pydantic import Field, model_validator, field_validator
 
 DEFAULT_INSECURE_KEYS = {
     "SECRET_KEY": "supersecretaccesskeychangeitinproduction1234567890",
@@ -22,6 +22,16 @@ class Settings(BaseSettings):
 
     # Database Settings
     DATABASE_URL: str = Field(default="postgresql+asyncpg://postgres:postgres@localhost:5432/expense_tracker")
+    
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def assemble_db_connection(cls, v: str) -> str:
+        if isinstance(v, str):
+            if v.startswith("postgres://"):
+                return v.replace("postgres://", "postgresql+asyncpg://", 1)
+            elif v.startswith("postgresql://") and not v.startswith("postgresql+asyncpg://"):
+                return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
     
     # Security Settings
     SECRET_KEY: str = Field(default=DEFAULT_INSECURE_KEYS["SECRET_KEY"])

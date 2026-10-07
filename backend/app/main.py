@@ -1,10 +1,14 @@
-import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from sqlalchemy import select
+
+from app.db.session import engine, async_session
+from app.models.models import Base, Category
 
 # Import routers
 from app.routers import (
@@ -27,12 +31,57 @@ from app.routers import (
 # Initialize slowapi Rate Limiter
 limiter = Limiter(key_func=get_remote_address)
 
+SYSTEM_CATEGORIES = [
+    {"name": "Food", "icon": "food-fork-spoon", "color": "#EF4444", "type": "Expense"},
+    {"name": "Grocery", "icon": "cart", "color": "#F59E0B", "type": "Expense"},
+    {"name": "Shopping", "icon": "shopping", "color": "#EC4899", "type": "Expense"},
+    {"name": "Bills", "icon": "file-document", "color": "#3B82F6", "type": "Expense"},
+    {"name": "Fuel", "icon": "gas-station", "color": "#10B981", "type": "Expense"},
+    {"name": "Travel", "icon": "bus", "color": "#8B5CF6", "type": "Expense"},
+    {"name": "Medical", "icon": "medical-bag", "color": "#EF4444", "type": "Expense"},
+    {"name": "Entertainment", "icon": "gamepad-variant", "color": "#EC4899", "type": "Expense"},
+    {"name": "Salary", "icon": "cash-multiple", "color": "#10B981", "type": "Income"},
+    {"name": "Investment", "icon": "trending-up", "color": "#3B82F6", "type": "Income"},
+    {"name": "Rent", "icon": "home-variant", "color": "#6B7280", "type": "Expense"},
+    {"name": "EMI", "icon": "credit-card", "color": "#EF4444", "type": "Expense"},
+    {"name": "Others", "icon": "dots-horizontal", "color": "#9CA3AF", "type": "Expense"}
+]
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Ensure database tables exist
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        print("Database schema successfully verified/initialized.")
+
+        # Seed system categories if not present
+        async with async_session() as session:
+            q = select(Category).where(Category.user_id == None).limit(1)
+            result = await session.execute(q)
+            if not result.scalar_one_or_none():
+                for cat in SYSTEM_CATEGORIES:
+                    session.add(Category(
+                        name=cat["name"],
+                        icon=cat["icon"],
+                        color=cat["color"],
+                        type=cat["type"],
+                        is_custom=False
+                    ))
+                await session.commit()
+                print("Default system categories initialized.")
+    except Exception as e:
+        print(f"Warning during database initialization: {e}")
+    yield
+    await engine.dispose()
+
 app = FastAPI(
     title="Expense Tracker AI Backend",
     description="Enterprise-grade production REST APIs powering Expense Tracker AI.",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # Connect rate limiter to app state
