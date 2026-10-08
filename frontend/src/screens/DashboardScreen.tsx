@@ -185,6 +185,31 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       {/* Main Content Area */}
       <View className="px-6 -mt-6">
         
+        {/* AI SMS & UPI Auto-Tracker Banner */}
+        <TouchableOpacity
+          onPress={() => navigation.navigate('SmsTracker')}
+          activeOpacity={0.88}
+          className="bg-white rounded-3xl p-4.5 shadow-sm border border-blue-100 mb-5 flex-row items-center justify-between"
+        >
+          <View className="flex-row items-center flex-1 mr-3">
+            <View className="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-150 items-center justify-center mr-3">
+              <Text className="text-xl">🤖</Text>
+            </View>
+            <View className="flex-1">
+              <View className="flex-row items-center mb-0.5">
+                <Text className="text-gray-900 text-sm font-black mr-2">AI UPI & SMS Tracker</Text>
+                <View className="w-2 h-2 rounded-full bg-emerald-500" />
+              </View>
+              <Text className="text-gray-500 text-[11px] font-medium" numberOfLines={1}>
+                Auto-logs UPI transfers, food stores & kirana SMS
+              </Text>
+            </View>
+          </View>
+          <View className="w-7 h-7 rounded-full bg-blue-50 items-center justify-center">
+            <Text className="text-blue-600 font-extrabold text-xs">➔</Text>
+          </View>
+        </TouchableOpacity>
+
         {/* Spending By Category Card */}
         <View className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-6">
           <View className="flex-row justify-between items-center mb-4">

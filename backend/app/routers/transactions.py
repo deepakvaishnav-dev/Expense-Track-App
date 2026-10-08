@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_, desc
@@ -319,7 +320,7 @@ async def auto_detect_transaction(
     determines classification details, creates the transaction, and adjusts balances.
     """
     # 1. Ask Gemini to classify
-    parsed: AIClassificationResponse = ai_service.classify_text(req.text)
+    parsed: AIClassificationResponse = await asyncio.to_thread(ai_service.classify_text, req.text)
 
     # 2. Log classification run
     log = AIClassificationLog(
@@ -346,7 +347,7 @@ async def auto_detect_transaction(
                 (Transaction.ref_number == parsed.reference_number)
             )
         )
-        existing_txn = dup_res.scalar_one_or_none()
+        existing_txn = dup_res.scalars().first()
         if existing_txn:
             await db.commit()  # Preserve classification log
             return existing_txn
@@ -357,18 +358,23 @@ async def auto_detect_transaction(
     )
     user_accounts = accounts_result.scalars().all()
     if not user_accounts:
-        await db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No financial accounts set up for user."
+        acc_name = parsed.bank_name if parsed.bank_name and parsed.bank_name != "Bank" else "Primary Bank"
+        target_account = Account(
+            user_id=current_user.id,
+            name=f"{acc_name} A/C",
+            type="Bank",
+            balance=10000.0,
+            currency="INR"
         )
-
-    target_account = user_accounts[0]  # Default fallback
-    if parsed.bank_name:
-        for acc in user_accounts:
-            if parsed.bank_name.lower() in acc.name.lower():
-                target_account = acc
-                break
+        db.add(target_account)
+        await db.flush()
+    else:
+        target_account = user_accounts[0]  # Default fallback
+        if parsed.bank_name:
+            for acc in user_accounts:
+                if parsed.bank_name.lower() in acc.name.lower():
+                    target_account = acc
+                    break
 
     # 5. Match category by name (case-insensitive), default to "Others"
     cat_result = await db.execute(
@@ -377,7 +383,7 @@ async def auto_detect_transaction(
             (or_(Category.user_id == current_user.id, Category.user_id == None))
         )
     )
-    category = cat_result.scalar_one_or_none()
+    category = cat_result.scalars().first()
     
     if not category:
         # Fallback to system "Others" category
@@ -386,7 +392,12 @@ async def auto_detect_transaction(
                 (Category.name.ilike("Others")) & (Category.user_id == None)
             )
         )
-        category = others_result.scalar_one_or_none()
+        category = others_result.scalars().first()
+        if not category:
+            any_cat_res = await db.execute(
+                select(Category).where(or_(Category.user_id == current_user.id, Category.user_id == None)).limit(1)
+            )
+            category = any_cat_res.scalars().first()
 
     # 6. Determine Transaction Type
     # UPI transfers, cards debit are Expenses. Deposits/Salary are Income.

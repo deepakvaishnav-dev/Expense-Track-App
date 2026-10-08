@@ -37,13 +37,26 @@ class AIService:
             model = genai.GenerativeModel(self.model_name)
             
             prompt = (
-                "You are an AI financial expense parsing assistant. Parse the following text from an SMS or notification "
-                "representing a financial transaction. Classify it into one of these categories: Food, Grocery, Shopping, "
-                "Bills, Fuel, Travel, Medical, Entertainment, Education, Investment, Salary, Subscription, EMI, Rent, Transfer, Others. "
-                "Extract the transaction amount, merchant (or bank/receiver), date (ISO 8601 string, make a best estimate if today is 2026-06-24), "
-                "bank name (if transaction happened through a bank/card/wallet), confidence score (0.0 to 1.0), payment method "
-                "(Cash, UPI, Debit Card, Credit Card, Wallet), and reference/transaction number. "
-                "If it does not represent a transaction, set category to 'Others', amount to 0, and confidence to 0.0.\n\n"
+                "You are an AI financial expense parsing assistant specialized in Indian UPI and Banking SMS alerts "
+                "(HDFC, SBI, ICICI, Axis, Kotak, PNB, Paytm, PhonePe, Google Pay, Cred).\n"
+                "Parse the following text from an SMS representing a financial transaction into JSON with these exact keys:\n"
+                "{\n"
+                '  "amount": 350.0,\n'
+                '  "merchant": "Swiggy",\n'
+                '  "category": "Food",\n'
+                '  "payment_method": "UPI",\n'
+                '  "bank_name": "HDFC",\n'
+                '  "reference_number": "428192849182",\n'
+                '  "confidence": 0.95\n'
+                "}\n\n"
+                "Important Rules:\n"
+                "1. If payment is Person-to-Person (P2P UPI transfer to friend/individual), category MUST be 'Transfer'.\n"
+                "2. If payment is to a restaurant, cafe, tea stall, dhaba, Swiggy, Zomato, category MUST be 'Food'.\n"
+                "3. If payment is to a kirana store, supermarket, Blinkit, Zepto, grocery mart, category MUST be 'Grocery'.\n"
+                "4. If payment is for petrol, diesel, fuel pump, category MUST be 'Fuel'.\n"
+                "5. Extract exact recipient/merchant name.\n"
+                "6. If the text is an OTP or non-financial message, set amount=0, confidence=0.0, category='Others'.\n"
+                "Output ONLY valid JSON.\n\n"
                 f"Transaction Text: \"{text}\""
             )
             
@@ -51,12 +64,27 @@ class AIService:
                 prompt,
                 generation_config=genai.GenerationConfig(
                     response_mime_type="application/json",
-                    response_schema=AIClassificationResponse,
                 ),
             )
             
-            result_json = json.loads(response.text)
-            return AIClassificationResponse(**result_json)
+            raw_text = response.text.strip()
+            match = re.search(r'\{[\s\S]*\}', raw_text)
+            result_json = json.loads(match.group(0)) if match else json.loads(raw_text)
+
+            amt = float(result_json.get("amount", 0.0) or 0.0)
+            if amt <= 0:
+                return self._mock_classify_text(text)
+
+            return AIClassificationResponse(
+                amount=amt,
+                merchant=result_json.get("merchant") or "UPI Merchant",
+                date=result_json.get("date") or datetime.now(timezone.utc).isoformat(),
+                bank_name=result_json.get("bank_name") or "UPI Bank",
+                category=result_json.get("category") or "Others",
+                confidence=float(result_json.get("confidence", 0.9) or 0.9),
+                payment_method=result_json.get("payment_method") or "UPI",
+                reference_number=str(result_json.get("reference_number") or f"UPI{int(datetime.now(timezone.utc).timestamp())}")
+            )
         except Exception as e:
             print(f"Gemini API Error: {e}")
             return self._mock_classify_text(text)
@@ -105,49 +133,105 @@ class AIService:
         """Helper to quickly check if a message is an OTP code."""
         text_lower = text.lower()
         has_otp_keywords = any(w in text_lower for w in ["otp", "one time password", "verification code", "verification otp", "code is"])
-        # If it has OTP keywords and isn't specifically saying "debited" or "credited"
         return has_otp_keywords and not any(w in text_lower for w in ["debited", "credited", "spent"])
 
     def _mock_classify_text(self, text: str) -> AIClassificationResponse:
-        """Fallback rule-based heuristic parsing for local/dev without API Keys."""
-        amount = 0.0
-        # Simple extraction of numeric amount after common keywords
-        match = re.search(r'(?:debited|spent|paid|rs\.?|inr|amt)\s*(?:of)?\s*(?:rs\.?|inr)?\s*([\d,]+(?:\.\d{2})?)', text, re.IGNORECASE)
-        if match:
-            amount = float(match.group(1).replace(',', ''))
-            
-        category = "Others"
+        """Robust rule-based heuristic parsing for Indian UPI & Bank SMS."""
         text_lower = text.lower()
-        if any(w in text_lower for w in ["food", "restaurant", "zomato", "swiggy", "cafe", "dining", "mcdonalds"]):
-            category = "Food"
-        elif any(w in text_lower for w in ["uber", "ola", "metro", "auto", "cab", "travel", "flight", "irctc"]):
-            category = "Travel"
-        elif any(w in text_lower for w in ["jio", "airtel", "electricity", "bill", "recharge", "water", "gas"]):
-            category = "Bills"
-        elif any(w in text_lower for w in ["grocery", "groceries", "blinkit", "zepto", "bigbasket", "mart"]):
-            category = "Grocery"
-        elif any(w in text_lower for w in ["netflix", "spotify", "prime", "youtube", "hotstar"]):
-            category = "Subscription"
-        elif any(w in text_lower for w in ["shopping", "amazon", "flipkart", "myntra", "zara"]):
-            category = "Shopping"
+        amount = 0.0
 
-        payment_method = "UPI" if "upi" in text_lower else ("Credit Card" if "credit card" in text_lower else "Debit Card")
-        
-        # Extract basic ref number
-        ref_match = re.search(r'(?:ref|txn|transaction|id|ref\.no\.?)\s*(?:is)?\s*(\d{8,14})', text, re.IGNORECASE)
-        ref_num = ref_match.group(1) if ref_match else "TXN" + str(int(datetime.now(timezone.utc).timestamp()))
-        
-        # Extract potential bank/card
-        bank_match = re.search(r'\b(hdfc|icici|sbi|axis|paytm|phonepe|gpay|bank)\b', text, re.IGNORECASE)
+        # 1. Amount extraction: Handles "Rs. 350.00", "Rs 350", "INR 1,200", "debited by 120.0", "paid 450", etc.
+        amt_match = re.search(
+            r'(?:debited\s*(?:by|for|with)?|spent|paid|transferred|sent|credited\s*(?:with|by)?|rs\.?|inr|amt\.?)\s*(?:of)?\s*(?:rs\.?|inr|₹)?\s*([\d,]+(?:\.\d{1,2})?)',
+            text,
+            re.IGNORECASE
+        )
+        if amt_match:
+            try:
+                amount = float(amt_match.group(1).replace(',', ''))
+            except ValueError:
+                amount = 0.0
+
+        if amount <= 0:
+            secondary_match = re.search(r'(?:rs\.?|inr|₹)\s*([\d,]+(?:\.\d{1,2})?)', text, re.IGNORECASE)
+            if secondary_match:
+                try:
+                    amount = float(secondary_match.group(1).replace(',', ''))
+                except ValueError:
+                    amount = 0.0
+
+        # 2. Extract Merchant / Recipient
+        merchant = "UPI Merchant"
+        p2m_match = re.search(r'upi\/(?:p2m|p2p)\/[\d\w]+\/([a-zA-Z0-9\s\.\@\-\&]+?)(?:\/|\s|\.|$)', text, re.IGNORECASE)
+        to_match = re.search(r'(?:transfer\s+to|transferred\s+to|sent\s+to|paid\s+to|to\s+vpa|to)\s+([A-Za-z0-9\s\.\@\-\&]{2,30}?)(?:\s+(?:on|via|using|ref|utr|avbl|bal|\.|\-)|$)', text, re.IGNORECASE)
+        at_match = re.search(r'(?:at|info)\s+([A-Za-z0-9\s\.\@\-\&]{2,30}?)(?:\s+(?:on|via|using|ref|avbl|bal|\.|\-)|$)', text, re.IGNORECASE)
+
+        is_p2p = False
+        if "p2p" in text_lower or "@" in text_lower:
+            is_p2p = True
+
+        if p2m_match:
+            merchant = p2m_match.group(1).strip()
+        elif to_match:
+            candidate = to_match.group(1).strip()
+            if candidate.lower() not in ["your", "a/c", "account", "the", "bank", "vpa"]:
+                merchant = candidate
+        elif at_match:
+            candidate = at_match.group(1).strip()
+            if candidate.lower() not in ["your", "a/c", "account", "the", "bank"]:
+                merchant = candidate
+
+        merchant = re.sub(r'^(the|a)\s+', '', merchant, flags=re.IGNORECASE).strip()
+        if len(merchant) > 35:
+            merchant = merchant[:35].strip()
+        if not merchant or merchant.lower() in ["bank", "user", "upi"]:
+            merchant = "UPI Transfer"
+
+        # 3. Categorization logic
+        category = "Others"
+        m_lower = merchant.lower()
+
+        if any(w in m_lower or w in text_lower for w in ["swiggy", "zomato", "mcdonald", "kfc", "domino", "burger", "pizza", "tea", "chai", "coffee", "cafe", "restaurant", "dhaba", "food", "dining", "bakery", "sweets", "kitchen", "biryani", "canteen"]):
+            category = "Food"
+        elif any(w in m_lower or w in text_lower for w in ["blinkit", "zepto", "bigbasket", "instamart", "kirana", "supermarket", "grocery", "mart", "provision", "store", "bazaar", "dairy", "milk", "vegetable", "fruit", "mandi"]):
+            category = "Grocery"
+        elif any(w in m_lower or w in text_lower for w in ["uber", "ola", "rapido", "metro", "auto", "cab", "travel", "flight", "indigo", "irctc", "railway", "redbus", "makemytrip"]):
+            category = "Travel"
+        elif any(w in m_lower or w in text_lower for w in ["fuel", "petrol", "diesel", "hpcl", "bpcl", "iocl", "indian oil", "bharat petroleum", "cng"]):
+            category = "Fuel"
+        elif any(w in m_lower or w in text_lower for w in ["jio", "airtel", "vi ", "vodafone", "bescom", "electricity", "bill", "recharge", "water", "gas", "broadband", "wifi", "cylinder"]):
+            category = "Bills"
+        elif any(w in m_lower or w in text_lower for w in ["amazon", "flipkart", "myntra", "meesho", "ajio", "nykaa", "zara", "h&m", "retail", "shopping", "clothing", "wear"]):
+            category = "Shopping"
+        elif any(w in m_lower or w in text_lower for w in ["netflix", "spotify", "prime", "youtube", "hotstar", "disney", "apple", "google storage"]):
+            category = "Subscription"
+        elif any(w in text_lower for w in ["salary", "payroll", "credited by employer", "stipend"]):
+            category = "Salary"
+        elif is_p2p or any(w in text_lower for w in ["p2p", "sent to friend", "person to person", "transfer to"]):
+            category = "Transfer"
+
+        # 4. Payment Method
+        payment_method = "UPI"
+        if "credit card" in text_lower:
+            payment_method = "Credit Card"
+        elif "debit card" in text_lower:
+            payment_method = "Debit Card"
+
+        # 5. Reference Number
+        ref_match = re.search(r'(?:ref(?:\s*no)?|rrn|utr|txn(?:\s*id)?|id)\s*[:\-\s]?\s*([A-Za-z0-9]{8,18})', text, re.IGNORECASE)
+        ref_num = ref_match.group(1) if ref_match else f"UPI{int(datetime.now(timezone.utc).timestamp())}"
+
+        # 6. Bank Name
+        bank_match = re.search(r'\b(hdfc|icici|sbi|axis|kotak|pnb|bob|canara|yes\s*bank|paytm|phonepe|gpay|idfc|indusind)\b', text, re.IGNORECASE)
         bank_name = bank_match.group(1).upper() if bank_match else "UPI Bank"
 
         return AIClassificationResponse(
-            amount=amount if amount > 0 else 100.0,  # Fallback amount if none extracted
-            merchant="Local Merchant" if amount > 0 else None,
+            amount=amount if amount > 0 else 0.0,
+            merchant=merchant if amount > 0 else None,
             date=datetime.now(timezone.utc).isoformat(),
             bank_name=bank_name,
             category=category,
-            confidence=0.85 if amount > 0 else 0.2,
+            confidence=0.90 if amount > 0 else 0.0,
             payment_method=payment_method,
             reference_number=ref_num
         )

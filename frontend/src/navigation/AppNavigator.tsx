@@ -11,6 +11,7 @@ import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { TransactionsListScreen } from '../screens/TransactionsListScreen';
 import { AIAssistantChatScreen } from '../screens/AIAssistantChatScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { SmsTrackerScreen } from '../screens/SmsTrackerScreen';
 import { useAuthStore } from '../store/authStore';
 import { showCustomAlert } from '../store/alertStore';
 import { View, Text, TouchableOpacity, Platform } from 'react-native';
@@ -65,6 +66,7 @@ const TabNavigator = () => {
                 { text: 'Cancel', style: 'cancel' },
                 { text: 'Manual Entry', onPress: () => navigation.navigate('AddTransaction') },
                 { text: 'Scan Receipt', onPress: () => navigation.navigate('ScanReceipt') },
+                { text: '📱 AI SMS Auto-Track', onPress: () => navigation.navigate('SmsTracker') },
               ]
             );
           },
@@ -132,6 +134,7 @@ export const AppNavigator = () => {
           <Stack.Screen name="Main" component={TabNavigator} />
           <Stack.Screen name="AddTransaction" component={AddTransactionScreen} />
           <Stack.Screen name="ScanReceipt" component={ScanReceiptScreen} />
+          <Stack.Screen name="SmsTracker" component={SmsTrackerScreen} />
           <Stack.Screen name="Notifications" component={NotificationsScreen} />
         </>
       )}

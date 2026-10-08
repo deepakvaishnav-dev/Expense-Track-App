@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, PermissionsAndroid, Platform, Alert, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, PermissionsAndroid, Platform, Dimensions } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { NativeModules } from 'react-native';
+import { showCustomAlert } from '../store/alertStore';
 
 const { width } = Dimensions.get('window');
 
@@ -57,10 +58,11 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }
         const cameraGranted = granted['android.permission.CAMERA'] === PermissionsAndroid.RESULTS.GRANTED;
 
         if (!smsGranted || !cameraGranted) {
-          Alert.alert(
-            'Permissions Required',
-            'Some features like SMS auto-tracking and Receipt scanning require manual permissions. You can enable them later in device settings.',
-            [{ text: 'OK', onPress: () => checkNotificationAccess() }]
+          showCustomAlert(
+            'Permissions Notice',
+            'Some features like SMS auto-tracking and Receipt scanning require permissions. You can also enable them later in settings.',
+            'info',
+            [{ text: 'Continue', onPress: () => checkNotificationAccess() }]
           );
         } else {
           checkNotificationAccess();
@@ -79,16 +81,16 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }
       if (NativeModules.ExpenseAIBridge) {
         const isEnabled = await NativeModules.ExpenseAIBridge.isNotificationListenerServiceEnabled();
         if (!isEnabled) {
-          Alert.alert(
-            'Notification Listener Access',
-            'To automatically detect payment notifications (GPay, Paytm, PhonePe), please enable Expense Tracker AI in the system settings screen.',
+          showCustomAlert(
+            'Notification Access',
+            'To automatically detect payment alerts (GPay, Paytm, PhonePe), you can enable Expense Tracker AI in system settings.',
+            'info',
             [
-              { text: 'Cancel', onPress: () => navigation.navigate('Login'), style: 'cancel' },
+              { text: 'Later', onPress: () => navigation.navigate('Login'), style: 'cancel' },
               {
                 text: 'Open Settings',
                 onPress: () => {
                   NativeModules.ExpenseAIBridge.openNotificationListenerSettings();
-                  // Navigate to login after settings open
                   setTimeout(() => navigation.navigate('Login'), 1000);
                 },
               },

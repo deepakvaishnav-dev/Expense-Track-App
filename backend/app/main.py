@@ -139,10 +139,8 @@ async def root(request: Request):
         "documentation": "/docs"
     }
 
-# General error handling
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    # Log internal server exception details
     print(f"Unhandled Exception at {request.url.path}: {exc}")
     return JSONResponse(
         status_code=500,

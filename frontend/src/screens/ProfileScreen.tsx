@@ -288,7 +288,32 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           </Text>
         </View>
 
-        {/* 2. Download Statements (Weekly, Monthly, Yearly) */}
+        {/* 2. AI SMS & UPI Tracker Quick Access */}
+        <TouchableOpacity
+          onPress={() => navigation.navigate('SmsTracker')}
+          activeOpacity={0.85}
+          className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6 flex-row items-center justify-between"
+        >
+          <View className="flex-row items-center flex-1 mr-3">
+            <View className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 items-center justify-center mr-3.5">
+              <Text className="text-2xl">🤖</Text>
+            </View>
+            <View className="flex-1">
+              <View className="flex-row items-center mb-0.5">
+                <Text className="text-gray-900 text-sm font-black mr-2">AI SMS & UPI Tracker</Text>
+                <View className="w-2 h-2 rounded-full bg-emerald-500" />
+              </View>
+              <Text className="text-gray-500 text-xs font-medium">
+                Manage background tracking & permissions
+              </Text>
+            </View>
+          </View>
+          <View className="w-8 h-8 rounded-full bg-blue-50 items-center justify-center">
+            <Text className="text-blue-600 font-bold text-sm">➔</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* 3. Download Statements (Weekly, Monthly, Yearly) */}
         <View className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-6">
           <View className="flex-row items-center mb-3">
             <Text className="text-2xl mr-2">📑</Text>
