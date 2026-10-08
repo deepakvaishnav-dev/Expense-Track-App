@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { Svg, Circle } from 'react-native-svg';
@@ -11,6 +12,8 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [activeInsight, setActiveInsight] = useState(0);
+  const [profilePhotoUri, setProfilePhotoUri] = useState<string | null>(null);
+  const [selectedAvatar, setSelectedAvatar] = useState<string>('👨');
   const [khataSummary, setKhataSummary] = useState<KhataSummary>({
     totalReceivable: 0,
     totalPayable: 0,
@@ -22,8 +25,21 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   useFocusEffect(
     useCallback(() => {
       fetchDashboardData();
+      loadProfileAvatar();
     }, [])
   );
+
+  const loadProfileAvatar = async () => {
+    try {
+      const [savedPhoto, savedAvatar] = await Promise.all([
+        AsyncStorage.getItem('@user_profile_photo_uri'),
+        AsyncStorage.getItem('@user_avatar_preset'),
+      ]);
+      if (savedPhoto) setProfilePhotoUri(savedPhoto);
+      else setProfilePhotoUri(null);
+      if (savedAvatar) setSelectedAvatar(savedAvatar);
+    } catch {}
+  };
 
   const fetchDashboardData = async (showLoading = false) => {
     if (showLoading) {
@@ -164,15 +180,27 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       <View className="bg-blue-600 rounded-b-[40px] pt-12 pb-16 px-6 relative shadow-md">
         {/* Welcome and Actions */}
         <View className="flex-row justify-between items-center mb-6">
-          <View className="flex-row items-center">
-            <View className="w-10 h-10 bg-white/20 rounded-full items-center justify-center mr-3">
-              <Text className="text-white font-bold text-lg">👤</Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Settings')}
+            activeOpacity={0.8}
+            className="flex-row items-center"
+          >
+            <View className="w-11 h-11 bg-white/20 rounded-full items-center justify-center mr-3 border-2 border-white/40 overflow-hidden shadow-sm">
+              {profilePhotoUri ? (
+                <Image
+                  source={{ uri: profilePhotoUri }}
+                  className="w-full h-full rounded-full"
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text className="text-2xl">{selectedAvatar}</Text>
+              )}
             </View>
             <View>
               <Text className="text-blue-100 text-xs font-semibold">Welcome,</Text>
               <Text className="text-white text-lg font-black">{user?.full_name || 'Deepak'}</Text>
             </View>
-          </View>
+          </TouchableOpacity>
           
           <View className="flex-row items-center space-x-2">
             <TouchableOpacity
