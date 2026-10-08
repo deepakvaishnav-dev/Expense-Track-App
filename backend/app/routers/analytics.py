@@ -91,8 +91,8 @@ async def get_analytics_summary(
             )
         )
         .group_by(
-            func.coalesce(Category.name, "Uncategorized"),
-            func.coalesce(Category.color, "#9E9E9E")
+            Category.name,
+            Category.color
         )
         .order_by(desc(func.sum(Transaction.amount)))
     )
@@ -215,7 +215,7 @@ async def get_ai_insights(
                 Transaction.date >= month_start
             )
         )
-        .group_by(func.coalesce(Category.name, "Uncategorized"))
+        .group_by(Category.name)
         .order_by(desc(func.sum(Transaction.amount)))
     )
     category_breakdown = [{"name": r[0], "amount": float(r[1] or 0.0)} for r in cat_res]

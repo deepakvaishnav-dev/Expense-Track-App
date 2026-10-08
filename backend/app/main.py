@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.db.session import engine, async_session
 from app.models.models import Base, Category
@@ -53,6 +53,8 @@ async def lifespan(app: FastAPI):
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            await conn.execute(text("ALTER TABLE budgets ADD COLUMN IF NOT EXISTS month INTEGER;"))
+            await conn.execute(text("ALTER TABLE budgets ADD COLUMN IF NOT EXISTS year INTEGER;"))
         print("Database schema successfully verified/initialized.")
 
         # Seed system categories if not present
