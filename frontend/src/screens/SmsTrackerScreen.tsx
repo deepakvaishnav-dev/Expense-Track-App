@@ -7,12 +7,10 @@ import {
   TextInput,
   ActivityIndicator,
   Platform,
-  Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { smsTrackerService, ProcessedSmsRecord } from '../services/smsTrackerService';
 import { showCustomAlert } from '../store/alertStore';
-import { Svg, Path, Circle } from 'react-native-svg';
 
 export const SmsTrackerScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [hasPermission, setHasPermission] = useState(false);
@@ -45,25 +43,20 @@ export const SmsTrackerScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const handleRequestPermission = async () => {
     setLoading(true);
     try {
-      const granted = await smsTrackerService.requestPermissions();
-      setHasPermission(granted);
-      if (granted) {
-        setAutoTrackingEnabled(true);
-        showCustomAlert(
-          'SMS Tracking Active! 🎉',
-          'Expense Tracker AI is now authorized to monitor your UPI & bank transaction alerts in the background.',
-          'success'
-        );
-      } else {
-        showCustomAlert(
-          'Permission Needed',
-          'SMS access is required for automatic UPI expense tracking. You can grant this in device settings anytime.',
-          'warning'
-        );
-      }
+      await smsTrackerService.requestPermissions();
+      // On Android, requestPermissions opens the Notification Access settings screen
+      showCustomAlert(
+        'Grant Notification Access',
+        'Find "Expense Tracker AI" in the list and toggle it ON so incoming Bank SMS and UPI notifications can be auto-detected.',
+        'info'
+      );
+      // Re-check status when user returns
+      setTimeout(() => {
+        loadStatusAndRecords();
+      }, 1500);
     } catch (e) {
       console.warn(e);
-      showCustomAlert('Error', 'Failed to request SMS permission.', 'error');
+      showCustomAlert('Error', 'Failed to request notification permission.', 'error');
     } finally {
       setLoading(false);
     }
@@ -80,10 +73,10 @@ export const SmsTrackerScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     setAutoTrackingEnabled(nextState);
 
     showCustomAlert(
-      nextState ? 'Auto-Tracking Enabled' : 'Auto-Tracking Paused',
+      nextState ? 'Auto-Tracking Active! 🚀' : 'Auto-Tracking Paused',
       nextState
-        ? 'Your incoming UPI and Bank SMS alerts will be logged automatically.'
-        : 'Automatic SMS background tracking is currently paused.',
+        ? 'Incoming Bank SMS & UPI alerts will now be logged automatically in real time.'
+        : 'Automatic background notification tracking is paused.',
       nextState ? 'success' : 'info'
     );
   };
@@ -91,7 +84,7 @@ export const SmsTrackerScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const handleProcessMessage = async (textToProcess: string, sampleLabel?: string) => {
     const text = textToProcess.trim();
     if (!text) {
-      showCustomAlert('Empty SMS', 'Please enter or paste a bank transaction SMS text.', 'warning');
+      showCustomAlert('Empty Text', 'Please enter or paste a transaction SMS or alert text.', 'warning');
       return;
     }
 
@@ -102,7 +95,7 @@ export const SmsTrackerScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       if (record) {
         showCustomAlert(
           'Transaction Logged! ⚡',
-          `AI analyzed your SMS:\n\n• Merchant: ${record.merchant}\n• Amount: ₹${record.amount.toLocaleString()}\n• Category: ${record.category}\n• Type: ${record.type}`,
+          `AI parsed your transaction:\n\n• Merchant: ${record.merchant}\n• Amount: ₹${record.amount.toLocaleString()}\n• Category: ${record.category}\n• Type: ${record.type}`,
           'success'
         );
         setCustomSms('');
@@ -111,7 +104,7 @@ export const SmsTrackerScreen: React.FC<{ navigation: any }> = ({ navigation }) 
       } else {
         showCustomAlert(
           'Non-Financial Message',
-          'This message does not appear to contain a transaction debit or credit alert (or is an OTP).',
+          'This message does not appear to contain a debit/credit transaction (or is an OTP).',
           'info'
         );
       }
@@ -127,7 +120,7 @@ export const SmsTrackerScreen: React.FC<{ navigation: any }> = ({ navigation }) 
   const handleClearHistory = () => {
     showCustomAlert(
       'Clear Tracking History?',
-      'This will clear the locally displayed list of recent SMS records.',
+      'This will clear the locally displayed list of recent auto-logged records.',
       'warning',
       [
         { text: 'Cancel', style: 'cancel' },
@@ -143,7 +136,6 @@ export const SmsTrackerScreen: React.FC<{ navigation: any }> = ({ navigation }) 
     );
   };
 
-  // Calculations for today's tracked metrics
   const totalTrackedAmount = recentRecords.reduce((sum, r) => sum + (r.type === 'Expense' ? r.amount : 0), 0);
   const p2pCount = recentRecords.filter((r) => r.category.toLowerCase().includes('transfer')).length;
   const foodCount = recentRecords.filter((r) => r.category.toLowerCase().includes('food')).length;
@@ -158,14 +150,14 @@ export const SmsTrackerScreen: React.FC<{ navigation: any }> = ({ navigation }) 
           <TouchableOpacity onPress={() => navigation.pop()} className="w-10 h-10 bg-white/20 rounded-full items-center justify-center">
             <Text className="text-white text-xl font-bold">←</Text>
           </TouchableOpacity>
-          <Text className="text-white text-xl font-black">AI SMS & UPI Tracker</Text>
+          <Text className="text-white text-xl font-black">Bank SMS & UPI Auto-Tracker</Text>
           <View className="w-10 h-10 bg-white/10 rounded-full items-center justify-center">
             <Text className="text-lg">🤖</Text>
           </View>
         </View>
 
         <Text className="text-blue-100 text-xs text-center font-medium px-4">
-          Reads Bank & UPI text messages to automatically detect, categorize, and log every payment with zero manual effort.
+          Real-time background listener: Intercepts Bank debit SMS & UPI alerts to auto-categorize and save expenses instantly.
         </Text>
       </View>
 
@@ -176,32 +168,71 @@ export const SmsTrackerScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             <View className="flex-row items-center">
               <View className={`w-3.5 h-3.5 rounded-full mr-2.5 ${autoTrackingEnabled ? 'bg-emerald-500' : 'bg-amber-500'}`} />
               <Text className="text-gray-900 text-base font-extrabold">
-                {autoTrackingEnabled ? 'Auto-Tracking Active' : 'Auto-Tracking Paused'}
+                {autoTrackingEnabled ? 'Auto-Tracking Active' : hasPermission ? 'Permission Granted' : 'Access Required'}
               </Text>
             </View>
             <TouchableOpacity
-              onPress={handleToggleAutoTracking}
+              onPress={hasPermission ? handleToggleAutoTracking : handleRequestPermission}
               disabled={loading}
               className={`px-3.5 py-1.5 rounded-full ${autoTrackingEnabled ? 'bg-emerald-50 border border-emerald-200' : 'bg-blue-600'}`}
             >
               <Text className={`text-xs font-bold ${autoTrackingEnabled ? 'text-emerald-700' : 'text-white'}`}>
-                {autoTrackingEnabled ? 'Active' : 'Enable Now'}
+                {autoTrackingEnabled ? 'Active' : hasPermission ? 'Turn On' : 'Grant Access'}
               </Text>
             </TouchableOpacity>
           </View>
 
           <Text className="text-gray-500 text-xs leading-4 mb-4">
             {autoTrackingEnabled
-              ? 'Incoming UPI alerts (P2P friends, food stores, shopkeepers, bills) will be analyzed automatically by AI.'
-              : 'Grant SMS permissions so AI can intercept your transaction text alerts and log expenses automatically.'}
+              ? '✅ System is active! When your bank sends an SMS or UPI popup appears, AI registers it automatically.'
+              : hasPermission
+              ? 'Notification access is granted. Tap "Turn On" to activate live background expense logging.'
+              : 'Tap "Grant Access" to enable Notification Listener in Android settings. 100% Play Protect safe!'}
           </Text>
 
-          {/* Privacy Guarantee Box */}
-          <View className="bg-gray-50 border border-gray-200 rounded-2xl p-3 flex-row items-center">
+          {/* Safe & Compliant Badge */}
+          <View className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 flex-row items-center">
             <Text className="text-base mr-2.5">🛡️</Text>
-            <Text className="text-[11px] text-gray-600 font-semibold flex-1 leading-4">
-              <Text className="font-bold text-gray-800">100% Privacy-Safe:</Text> Only parses bank debits & credits (HDFC, SBI, ICICI, etc.). Never reads personal chats or OTPs.
+            <Text className="text-[11px] text-emerald-800 font-semibold flex-1 leading-4">
+              <Text className="font-bold text-emerald-950">Google Play Protect Compliant:</Text> Safe Android listener. Only extracts transaction debits/credits. Never reads OTPs or personal chats.
             </Text>
+          </View>
+        </View>
+
+        {/* How It Works Visual Step Guide */}
+        <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-5">
+          <Text className="text-gray-900 text-sm font-black mb-3">How Auto-Tracking Works</Text>
+          
+          <View className="space-y-3">
+            <View className="flex-row items-start">
+              <View className="w-6 h-6 rounded-full bg-blue-100 items-center justify-center mr-3 mt-0.5">
+                <Text className="text-blue-700 text-xs font-bold">1</Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-gray-900 text-xs font-bold">Bank Debit or UPI Alert Arrives</Text>
+                <Text className="text-gray-500 text-[11px]">HDFC, SBI, ICICI SMS or PhonePe/GPay alert pops up on your phone.</Text>
+              </View>
+            </View>
+
+            <View className="flex-row items-start mt-2">
+              <View className="w-6 h-6 rounded-full bg-purple-100 items-center justify-center mr-3 mt-0.5">
+                <Text className="text-purple-700 text-xs font-bold">2</Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-gray-900 text-xs font-bold">AI Extracts & Categorizes</Text>
+                <Text className="text-gray-500 text-[11px]">Amount, merchant name, date, and category are parsed accurately.</Text>
+              </View>
+            </View>
+
+            <View className="flex-row items-start mt-2">
+              <View className="w-6 h-6 rounded-full bg-emerald-100 items-center justify-center mr-3 mt-0.5">
+                <Text className="text-emerald-700 text-xs font-bold">3</Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-gray-900 text-xs font-bold">Auto-Logged to Your Expense Feed</Text>
+                <Text className="text-gray-500 text-[11px]">Saved with zero manual typing or effort!</Text>
+              </View>
+            </View>
           </View>
         </View>
 
@@ -219,7 +250,6 @@ export const SmsTrackerScreen: React.FC<{ navigation: any }> = ({ navigation }) 
             </View>
           </View>
 
-          {/* Routine Breakdown Chips */}
           <View className="flex-row justify-between pt-2 border-t border-gray-100">
             <View className="items-center flex-1">
               <Text className="text-base">👤</Text>
@@ -301,7 +331,7 @@ export const SmsTrackerScreen: React.FC<{ navigation: any }> = ({ navigation }) 
         {/* Recent Auto-Detected Transactions Stream */}
         <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-8">
           <View className="flex-row justify-between items-center mb-3">
-            <Text className="text-gray-900 text-sm font-black">Recent Auto-Logged SMS</Text>
+            <Text className="text-gray-900 text-sm font-black">Recent Auto-Logged Transactions</Text>
             {recentRecords.length > 0 && (
               <TouchableOpacity onPress={handleClearHistory}>
                 <Text className="text-red-500 text-xs font-bold">Clear</Text>
@@ -345,11 +375,11 @@ export const SmsTrackerScreen: React.FC<{ navigation: any }> = ({ navigation }) 
                     </Text>
                   </View>
 
-                  {/* Raw SMS Snippet */}
+                  {/* Raw Text Snippet */}
                   <Text className="text-[10px] text-gray-400 font-mono italic" numberOfLines={1}>
                     "{item.rawText}"
                   </Text>
-                  <Text className="text-[9px] text-gray-400 mt-0.5">{timeStr} • Auto-logged via SMS</Text>
+                  <Text className="text-[9px] text-gray-400 mt-0.5">{timeStr} • Auto-logged</Text>
                 </View>
               );
             })

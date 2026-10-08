@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "android": "react-native run-android",
-    "ios": "react-native run-ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "start": "react-native start",
     "test": "jest",
     "lint": "eslint .",
@@ -28,6 +28,7 @@
     "react-dom": "19.1.0",
     "react-hook-form": "^7.51.5",
     "react-native": "0.81.5",
+    "react-native-android-notification-listener": "^5.0.1",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-mmkv": "^2.12.2",
     "react-native-reanimated": "~4.1.1",

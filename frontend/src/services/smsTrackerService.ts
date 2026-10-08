@@ -1,6 +1,13 @@
-import { Platform, PermissionsAndroid } from 'react-native';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from './api';
+
+let RNNotificationListener: any = null;
+try {
+  RNNotificationListener = require('react-native-android-notification-listener').default;
+} catch (e) {
+  // Graceful fallback for non-Android / Expo Go
+}
 
 export interface ProcessedSmsRecord {
   id: string;
@@ -22,7 +29,7 @@ const STORAGE_KEYS = {
 
 class SmsTrackerService {
   /**
-   * Checks if Android READ_SMS and RECEIVE_SMS permissions are granted.
+   * Checks if Android Notification Listener permission is granted.
    */
   async checkPermissions(): Promise<boolean> {
     if (Platform.OS !== 'android') {
@@ -30,17 +37,19 @@ class SmsTrackerService {
     }
 
     try {
-      const readGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.READ_SMS);
-      const receiveGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.RECEIVE_SMS);
-      return readGranted && receiveGranted;
+      if (RNNotificationListener && typeof RNNotificationListener.getPermissionStatus === 'function') {
+        const status = await RNNotificationListener.getPermissionStatus();
+        return status === 'authorized';
+      }
+      return false;
     } catch (e) {
-      console.warn('Error checking SMS permissions:', e);
+      console.warn('Error checking notification listener permissions:', e);
       return false;
     }
   }
 
   /**
-   * Prompts user for Android runtime SMS permissions.
+   * Prompts user to grant Android Notification Listener access.
    */
   async requestPermissions(): Promise<boolean> {
     if (Platform.OS !== 'android') {
@@ -49,21 +58,14 @@ class SmsTrackerService {
     }
 
     try {
-      const results = await PermissionsAndroid.requestMultiple([
-        PermissionsAndroid.PERMISSIONS.READ_SMS,
-        PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
-      ]);
-
-      const granted =
-        results['android.permission.READ_SMS'] === PermissionsAndroid.RESULTS.GRANTED &&
-        results['android.permission.RECEIVE_SMS'] === PermissionsAndroid.RESULTS.GRANTED;
-
-      if (granted) {
-        await this.setAutoTrackingEnabled(true);
+      if (RNNotificationListener && typeof RNNotificationListener.requestPermission === 'function') {
+        RNNotificationListener.requestPermission();
+        // Give time for user to toggle and return
+        return true;
       }
-      return granted;
+      return false;
     } catch (e) {
-      console.warn('Error requesting SMS permissions:', e);
+      console.warn('Error requesting notification listener permissions:', e);
       return false;
     }
   }
@@ -92,9 +94,10 @@ class SmsTrackerService {
   }
 
   /**
-   * Checks whether an SMS is a valid financial transaction (not an OTP or marketing).
+   * Checks whether an SMS or Notification is a valid financial transaction (not an OTP or marketing).
    */
   isFinancialSms(text: string): boolean {
+    if (!text || typeof text !== 'string') return false;
     const textLower = text.toLowerCase();
 
     // Ignore OTP messages immediately
@@ -109,7 +112,7 @@ class SmsTrackerService {
       return false;
     }
 
-    // Must have financial markers
+    // Must have financial keywords
     const hasFinancialKeywords = [
       'debited',
       'credited',
@@ -128,6 +131,45 @@ class SmsTrackerService {
     ].some((kw) => textLower.includes(kw));
 
     return hasFinancialKeywords;
+  }
+
+  /**
+   * Processes a background notification received by RNAndroidNotificationListener.
+   */
+  async processIncomingNotification(notificationData: any): Promise<ProcessedSmsRecord | null> {
+    try {
+      const enabled = await this.isAutoTrackingEnabled();
+      if (!enabled) return null;
+
+      const title = notificationData?.title || '';
+      const text = notificationData?.text || notificationData?.subText || '';
+      const combined = `${title} ${text}`.trim();
+
+      if (!this.isFinancialSms(combined)) {
+        return null;
+      }
+
+      // Check deduplication
+      const existingRefs = await this.getProcessedRefNumbers();
+      // Extract reference number if present
+      const refMatch = combined.match(/(?:ref(?:erence)?(?:\s*(?:no|id|num))?[:.\s]*|[#\-])([A-Za-z0-9]{8,16})/i);
+      const refNumber = refMatch ? refMatch[1] : null;
+
+      if (refNumber && existingRefs.includes(refNumber)) {
+        return null; // Already processed
+      }
+
+      const record = await this.processSms(combined, title || 'Bank SMS Alert');
+
+      if (record && refNumber) {
+        await this.addProcessedRefNumber(refNumber);
+      }
+
+      return record;
+    } catch (err) {
+      console.warn('Error processing incoming background notification:', err);
+      return null;
+    }
   }
 
   /**
@@ -167,6 +209,28 @@ class SmsTrackerService {
     } catch (error: any) {
       console.warn('Error auto-detecting SMS transaction:', error?.response?.data || error);
       throw error;
+    }
+  }
+
+  /**
+   * Deduplication reference numbers
+   */
+  private async getProcessedRefNumbers(): Promise<string[]> {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.PROCESSED_REF_NUMBERS);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private async addProcessedRefNumber(ref: string): Promise<void> {
+    try {
+      const existing = await this.getProcessedRefNumbers();
+      const updated = [ref, ...existing].slice(0, 200);
+      await AsyncStorage.setItem(STORAGE_KEYS.PROCESSED_REF_NUMBERS, JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Error caching ref number:', e);
     }
   }
 
