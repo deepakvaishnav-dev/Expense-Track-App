@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Modal, TouchableOpacity, Animated, Platform } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, Platform, StyleSheet } from 'react-native';
 import { Svg, Path, Circle } from 'react-native-svg';
 import { useAlertStore } from '../../store/alertStore';
 
@@ -33,12 +33,10 @@ export const CustomAlertModal: React.FC = () => {
         return {
           bgColor: '#ecfdf5',
           borderColor: '#a7f3d0',
-          iconColor: '#10b981',
-          btnBg: 'bg-emerald-600',
-          btnText: 'text-white',
+          buttonColor: '#10b981',
           icon: (
             <Svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-              <Circle cx="12" cy="12" r="10" fill="#10b981" fillOpacity="0.15" />
+              <Circle cx="12" cy="12" r="10" fill="#10b981" fillOpacity="0.18" />
               <Path
                 d="M8 12.5l2.5 2.5 5.5-5.5"
                 stroke="#10b981"
@@ -53,12 +51,10 @@ export const CustomAlertModal: React.FC = () => {
         return {
           bgColor: '#fef2f2',
           borderColor: '#fecaca',
-          iconColor: '#ef4444',
-          btnBg: 'bg-red-500',
-          btnText: 'text-white',
+          buttonColor: '#ef4444',
           icon: (
             <Svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-              <Circle cx="12" cy="12" r="10" fill="#ef4444" fillOpacity="0.15" />
+              <Circle cx="12" cy="12" r="10" fill="#ef4444" fillOpacity="0.18" />
               <Path
                 d="M15 9l-6 6m0-6l6 6"
                 stroke="#ef4444"
@@ -73,12 +69,10 @@ export const CustomAlertModal: React.FC = () => {
         return {
           bgColor: '#fffbeb',
           borderColor: '#fde68a',
-          iconColor: '#f59e0b',
-          btnBg: 'bg-amber-500',
-          btnText: 'text-white',
+          buttonColor: '#f59e0b',
           icon: (
             <Svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-              <Circle cx="12" cy="12" r="10" fill="#f59e0b" fillOpacity="0.15" />
+              <Circle cx="12" cy="12" r="10" fill="#f59e0b" fillOpacity="0.18" />
               <Path
                 d="M12 8v4m0 4h.01"
                 stroke="#f59e0b"
@@ -94,12 +88,10 @@ export const CustomAlertModal: React.FC = () => {
         return {
           bgColor: '#eff6ff',
           borderColor: '#bfdbfe',
-          iconColor: '#3b82f6',
-          btnBg: 'bg-blue-600',
-          btnText: 'text-white',
+          buttonColor: '#3b82f6',
           icon: (
             <Svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-              <Circle cx="12" cy="12" r="10" fill="#3b82f6" fillOpacity="0.15" />
+              <Circle cx="12" cy="12" r="10" fill="#3b82f6" fillOpacity="0.18" />
               <Path
                 d="M12 16v-4m0-4h.01"
                 stroke="#3b82f6"
@@ -123,50 +115,62 @@ export const CustomAlertModal: React.FC = () => {
       onRequestClose={hideAlert}
       statusBarTranslucent
     >
-      <View className="flex-1 justify-center items-center px-6 bg-black/60">
-        <View className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl border border-gray-100 items-center">
+      <View style={styles.backdrop}>
+        <View style={styles.card}>
           {/* Circular Glowing Icon Badge */}
           <View
-            style={{ backgroundColor: theme.bgColor, borderColor: theme.borderColor }}
-            className="w-18 h-18 p-3 rounded-full border items-center justify-center mb-4 shadow-sm"
+            style={[
+              styles.iconBadge,
+              { backgroundColor: theme.bgColor, borderColor: theme.borderColor },
+            ]}
           >
             {theme.icon}
           </View>
 
           {/* Title */}
-          <Text className="text-gray-900 text-xl font-black text-center mb-2 tracking-tight">
-            {title}
-          </Text>
+          <Text style={styles.title}>{title}</Text>
 
           {/* Message */}
-          <Text className="text-gray-500 text-sm text-center font-medium leading-5 mb-6 px-2">
-            {message}
-          </Text>
+          <Text style={styles.message}>{message}</Text>
 
           {/* Action Buttons */}
           {buttons && buttons.length > 0 ? (
-            <View className={`w-full ${buttons.length > 1 ? 'flex-row gap-3' : ''}`}>
+            <View
+              style={
+                buttons.length > 2
+                  ? styles.buttonCol
+                  : buttons.length === 2
+                  ? styles.buttonRow
+                  : styles.buttonSingle
+              }
+            >
               {buttons.map((btn, idx) => {
                 const isDestructive = btn.style === 'destructive';
                 const isCancel = btn.style === 'cancel';
+                const btnBg = isDestructive
+                  ? '#ef4444'
+                  : isCancel
+                  ? '#f3f4f6'
+                  : theme.buttonColor;
+                const txtColor = isCancel ? '#374151' : '#ffffff';
+
                 return (
                   <TouchableOpacity
                     key={idx}
                     onPress={() => handleButtonPress(btn.onPress)}
-                    activeOpacity={0.8}
-                    className={`flex-1 py-3.5 rounded-2xl items-center justify-center shadow-sm ${
-                      isDestructive
-                        ? 'bg-red-500'
-                        : isCancel
-                        ? 'bg-gray-100 border border-gray-200'
-                        : theme.btnBg
-                    }`}
+                    activeOpacity={0.85}
+                    style={[
+                      styles.button,
+                      {
+                        backgroundColor: btnBg,
+                        flex: buttons.length === 2 ? 1 : undefined,
+                        width: buttons.length === 2 ? undefined : '100%',
+                        borderWidth: isCancel ? 1 : 0,
+                        borderColor: '#e5e7eb',
+                      },
+                    ]}
                   >
-                    <Text
-                      className={`font-black text-sm ${
-                        isCancel ? 'text-gray-700' : 'text-white'
-                      }`}
-                    >
+                    <Text style={[styles.buttonText, { color: txtColor }]}>
                       {btn.text}
                     </Text>
                   </TouchableOpacity>
@@ -174,22 +178,32 @@ export const CustomAlertModal: React.FC = () => {
               })}
             </View>
           ) : (
-            <View className="w-full flex-row gap-3">
+            <View style={onCancel ? styles.buttonRow : styles.buttonSingle}>
               {onCancel && (
                 <TouchableOpacity
                   onPress={() => handleButtonPress(onCancel)}
-                  activeOpacity={0.8}
-                  className="flex-1 py-3.5 bg-gray-100 border border-gray-200 rounded-2xl items-center justify-center"
+                  activeOpacity={0.85}
+                  style={[
+                    styles.button,
+                    { flex: 1, backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e5e7eb' },
+                  ]}
                 >
-                  <Text className="text-gray-700 font-bold text-sm">{cancelText}</Text>
+                  <Text style={[styles.buttonText, { color: '#374151' }]}>{cancelText}</Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity
                 onPress={() => handleButtonPress(onConfirm)}
-                activeOpacity={0.8}
-                className={`flex-1 py-3.5 ${theme.btnBg} rounded-2xl items-center justify-center shadow-md`}
+                activeOpacity={0.85}
+                style={[
+                  styles.button,
+                  {
+                    flex: onCancel ? 1 : undefined,
+                    width: onCancel ? undefined : '100%',
+                    backgroundColor: theme.buttonColor,
+                  },
+                ]}
               >
-                <Text className="text-white font-black text-sm">{confirmText}</Text>
+                <Text style={[styles.buttonText, { color: '#ffffff' }]}>{confirmText}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -198,3 +212,83 @@ export const CustomAlertModal: React.FC = () => {
     </Modal>
   );
 };
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+  },
+  card: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: '#ffffff',
+    borderRadius: 28,
+    paddingHorizontal: 22,
+    paddingTop: 26,
+    paddingBottom: 22,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  iconBadge: {
+    width: 66,
+    height: 66,
+    borderRadius: 33,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+    textAlign: 'center',
+    marginBottom: 8,
+    letterSpacing: -0.3,
+  },
+  message: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 22,
+    paddingHorizontal: 6,
+  },
+  buttonSingle: {
+    width: '100%',
+  },
+  buttonRow: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: 10,
+  },
+  buttonCol: {
+    width: '100%',
+    flexDirection: 'column',
+    gap: 10,
+  },
+  button: {
+    height: 48,
+    minHeight: 48,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  buttonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 0.2,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+});
