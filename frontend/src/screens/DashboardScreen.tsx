@@ -221,30 +221,30 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
               </View>
               <View>
                 <View className="flex-row items-center">
-                  <Text className="text-gray-900 text-sm font-black mr-2">KhataBook (P2P Udhaar)</Text>
+                  <Text className="text-gray-900 text-sm font-black mr-2">Accounts Book</Text>
                   <View className="w-2 h-2 rounded-full bg-emerald-500" />
                 </View>
                 <Text className="text-gray-400 text-[10px] font-semibold">
-                  Track money lent & borrowed with friends
+                  Track money lent & borrowed with contacts
                 </Text>
               </View>
             </View>
             <View className="px-3 py-1 bg-blue-50 rounded-full border border-blue-200">
-              <Text className="text-blue-700 text-[10px] font-extrabold">Open Khata ➔</Text>
+              <Text className="text-blue-700 text-[10px] font-extrabold">Open Book ➔</Text>
             </View>
           </View>
 
-          {/* Khata Live Totals Bar */}
+          {/* Accounts Live Totals Bar */}
           <View className="flex-row justify-between bg-gray-50 rounded-2xl p-3.5 border border-gray-150">
             <View className="flex-1 mr-2">
-              <Text className="text-emerald-700 text-[9px] font-black tracking-wider">🟢 KUL LENA HAI (GET)</Text>
+              <Text className="text-emerald-700 text-[9px] font-black tracking-wider">🟢 TOTAL RECEIVABLE</Text>
               <Text className="text-emerald-900 text-lg font-black mt-0.5">
                 ₹{khataSummary.totalReceivable.toLocaleString()}
               </Text>
             </View>
             <View className="w-px bg-gray-200" />
             <View className="flex-1 pl-3">
-              <Text className="text-rose-700 text-[9px] font-black tracking-wider">🔴 KUL DENA HAI (GIVE)</Text>
+              <Text className="text-rose-700 text-[9px] font-black tracking-wider">🔴 TOTAL PAYABLE</Text>
               <Text className="text-rose-900 text-lg font-black mt-0.5">
                 ₹{khataSummary.totalPayable.toLocaleString()}
               </Text>

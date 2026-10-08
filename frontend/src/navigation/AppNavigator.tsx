@@ -101,7 +101,7 @@ const TabNavigator = () => {
         name="KhataTab" 
         component={KhataBookScreen} 
         options={{
-          tabBarLabel: 'KhataBook',
+          tabBarLabel: 'Accounts Book',
           tabBarIcon: ({ color }: { color: string }) => <Text style={{ color, fontSize: 22 }}>📒</Text>,
         }}
       />

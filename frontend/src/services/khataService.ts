@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export type KhataEntryType = 'GAVE' | 'GOT' | 'SETTLE'; // GAVE = Maine Diye (Lena Hai), GOT = Maine Liye (Dena Hai), SETTLE = Hisab Barabar
+export type KhataEntryType = 'GAVE' | 'GOT' | 'SETTLE'; // GAVE = Lent (Receivable), GOT = Borrowed (Payable), SETTLE = Settled
 
 export interface KhataTransaction {
   id: string;
@@ -19,24 +19,25 @@ export interface KhataPerson {
   name: string;
   phone?: string;
   color: string;
-  totalGave: number; // Maine Diye (Total lent)
-  totalGot: number;  // Maine Liye (Total borrowed)
-  netBalance: number; // positive = Lena Hai, negative = Dena Hai, 0 = Hisab Barabar
+  totalGave: number; // Lent
+  totalGot: number;  // Borrowed
+  netBalance: number; // positive = Receivable, negative = Payable, 0 = Settled
   lastTxnDate: string;
   lastNote?: string;
   txnCount: number;
 }
 
 export interface KhataSummary {
-  totalReceivable: number; // Kul Lena Hai (You will get)
-  totalPayable: number;    // Kul Dena Hai (You will give)
+  totalReceivable: number; // Total to receive (positive balances)
+  totalPayable: number;    // Total to pay (negative balances)
   netBalance: number;      // Difference
   totalPersons: number;
 }
 
+// Version 2 keys to ensure clean start without previous dummy data
 const STORAGE_KEYS = {
-  KHATA_PERSONS: '@expense_ai_khata_persons_v1',
-  KHATA_TXNS: '@expense_ai_khata_txns_v1',
+  PERSONS: '@accounts_book_persons_v2',
+  TXNS: '@accounts_book_txns_v2',
 };
 
 const AVATAR_COLORS = [
@@ -46,118 +47,36 @@ const AVATAR_COLORS = [
 
 class KhataService {
   /**
-   * Seed default initial sample if first launch so user sees immediate data.
+   * Load clean persistent state (starts 100% empty, NO dummy data).
    */
-  private async ensureInitialized(): Promise<{ persons: KhataPerson[]; txns: KhataTransaction[] }> {
+  private async loadData(): Promise<{ persons: KhataPerson[]; txns: KhataTransaction[] }> {
     try {
-      const rawPersons = await AsyncStorage.getItem(STORAGE_KEYS.KHATA_PERSONS);
-      const rawTxns = await AsyncStorage.getItem(STORAGE_KEYS.KHATA_TXNS);
+      const rawPersons = await AsyncStorage.getItem(STORAGE_KEYS.PERSONS);
+      const rawTxns = await AsyncStorage.getItem(STORAGE_KEYS.TXNS);
 
-      if (rawPersons && rawTxns) {
-        return {
-          persons: JSON.parse(rawPersons),
-          txns: JSON.parse(rawTxns),
-        };
-      }
+      const persons: KhataPerson[] = rawPersons ? JSON.parse(rawPersons) : [];
+      const txns: KhataTransaction[] = rawTxns ? JSON.parse(rawTxns) : [];
 
-      // Initial realistic seed: Deepak gave Aniket ₹1,500 udhaar, Rahul gave Deepak ₹500
-      const initialPersons: KhataPerson[] = [
-        {
-          id: 'person_aniket',
-          name: 'Aniket Sharma',
-          phone: '+91 98765 43210',
-          color: '#3B82F6',
-          totalGave: 2000,
-          totalGot: 500,
-          netBalance: 1500, // +1500 Lena Hai
-          lastTxnDate: new Date(Date.now() - 86400000 * 2).toISOString(),
-          lastNote: 'Dinner split & Petrol udhaar',
-          txnCount: 2,
-        },
-        {
-          id: 'person_rahul',
-          name: 'Rahul Verma',
-          phone: '+91 98123 45678',
-          color: '#EF4444',
-          totalGave: 0,
-          totalGot: 800,
-          netBalance: -800, // -800 Dena Hai
-          lastTxnDate: new Date(Date.now() - 86400000 * 4).toISOString(),
-          lastNote: 'Lunch bill share',
-          txnCount: 1,
-        },
-        {
-          id: 'person_priya',
-          name: 'Priya Singh',
-          phone: '+91 99887 76655',
-          color: '#10B981',
-          totalGave: 3500,
-          totalGot: 0,
-          netBalance: 3500, // +3500 Lena Hai
-          lastTxnDate: new Date(Date.now() - 86400000 * 7).toISOString(),
-          lastNote: 'Shopping advance',
-          txnCount: 1,
-        },
-      ];
-
-      const initialTxns: KhataTransaction[] = [
-        {
-          id: 'txn_1',
-          personId: 'person_aniket',
-          personName: 'Aniket Sharma',
-          type: 'GAVE',
-          amount: 2000,
-          date: new Date(Date.now() - 86400000 * 5).toISOString(),
-          note: 'Emergency cash udhaar diya',
-          dueDate: new Date(Date.now() + 86400000 * 5).toISOString(),
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: 'txn_2',
-          personId: 'person_aniket',
-          personName: 'Aniket Sharma',
-          type: 'GOT',
-          amount: 500,
-          date: new Date(Date.now() - 86400000 * 2).toISOString(),
-          note: 'Partially returned ₹500 via UPI',
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: 'txn_3',
-          personId: 'person_rahul',
-          personName: 'Rahul Verma',
-          type: 'GOT',
-          amount: 800,
-          date: new Date(Date.now() - 86400000 * 4).toISOString(),
-          note: 'Cafe bill paid by Rahul (mujhe dene hain)',
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: 'txn_4',
-          personId: 'person_priya',
-          personName: 'Priya Singh',
-          type: 'GAVE',
-          amount: 3500,
-          date: new Date(Date.now() - 86400000 * 7).toISOString(),
-          note: 'Grocery bill covered',
-          createdAt: new Date().toISOString(),
-        },
-      ];
-
-      await AsyncStorage.setItem(STORAGE_KEYS.KHATA_PERSONS, JSON.stringify(initialPersons));
-      await AsyncStorage.setItem(STORAGE_KEYS.KHATA_TXNS, JSON.stringify(initialTxns));
-
-      return { persons: initialPersons, txns: initialTxns };
+      return { persons, txns };
     } catch {
       return { persons: [], txns: [] };
     }
   }
 
+  private async saveData(persons: KhataPerson[], txns: KhataTransaction[]): Promise<void> {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.PERSONS, JSON.stringify(persons));
+      await AsyncStorage.setItem(STORAGE_KEYS.TXNS, JSON.stringify(txns));
+    } catch (e) {
+      console.warn('Error saving accounts book data:', e);
+    }
+  }
+
   /**
-   * Get all persons with recalculated net balances.
+   * Get all persons sorted by most recent activity.
    */
   async getPersons(): Promise<KhataPerson[]> {
-    const { persons } = await this.ensureInitialized();
+    const { persons } = await this.loadData();
     return persons.sort((a, b) => new Date(b.lastTxnDate).getTime() - new Date(a.lastTxnDate).getTime());
   }
 
@@ -165,14 +84,14 @@ class KhataService {
    * Get all transactions for a specific person.
    */
   async getPersonTransactions(personId: string): Promise<KhataTransaction[]> {
-    const { txns } = await this.ensureInitialized();
+    const { txns } = await this.loadData();
     return txns
       .filter((t) => t.personId === personId)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }
 
   /**
-   * Add a new transaction (Maine Diye or Maine Liye).
+   * Add a new transaction (Lent or Borrowed).
    */
   async addTransaction(payload: {
     personName: string;
@@ -183,12 +102,12 @@ class KhataService {
     date?: string;
     dueDate?: string;
   }): Promise<{ transaction: KhataTransaction; person: KhataPerson }> {
-    const { persons, txns } = await this.ensureInitialized();
+    const { persons, txns } = await this.loadData();
     const cleanName = payload.personName.trim();
     const amount = Math.abs(Number(payload.amount)) || 0;
     const dateStr = payload.date || new Date().toISOString();
 
-    // Find or create person
+    // Find existing person or create new
     let person = persons.find((p) => p.name.toLowerCase() === cleanName.toLowerCase());
 
     if (!person) {
@@ -196,7 +115,7 @@ class KhataService {
       person = {
         id: `person_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         name: cleanName,
-        phone: payload.phone?.trim(),
+        phone: payload.phone?.trim() || undefined,
         color: randomColor,
         totalGave: 0,
         totalGot: 0,
@@ -206,7 +125,7 @@ class KhataService {
         txnCount: 0,
       };
       persons.push(person);
-    } else if (payload.phone?.trim() && !person.phone) {
+    } else if (payload.phone?.trim()) {
       person.phone = payload.phone.trim();
     }
 
@@ -227,27 +146,78 @@ class KhataService {
     // Recalculate person statistics
     this.recalculatePerson(person, txns);
     person.lastTxnDate = dateStr;
-    person.lastNote = payload.note || (payload.type === 'GAVE' ? 'Maine diye' : 'Maine liye');
+    person.lastNote = payload.note || (payload.type === 'GAVE' ? 'Money Lent' : 'Money Borrowed');
 
-    await AsyncStorage.setItem(STORAGE_KEYS.KHATA_PERSONS, JSON.stringify(persons));
-    await AsyncStorage.setItem(STORAGE_KEYS.KHATA_TXNS, JSON.stringify(txns));
-
+    await this.saveData(persons, txns);
     return { transaction: newTxn, person };
   }
 
   /**
-   * Settle an entire account (Hisab Barabar).
+   * Edit an existing person (Name, Phone).
    */
-  async settlePerson(personId: string, note: string = 'Hisab barabar kiya'): Promise<KhataPerson | null> {
-    const { persons, txns } = await this.ensureInitialized();
+  async editPerson(personId: string, updates: { name: string; phone?: string }): Promise<KhataPerson | null> {
+    const { persons, txns } = await this.loadData();
+    const person = persons.find((p) => p.id === personId);
+    if (!person) return null;
+
+    const newName = updates.name.trim();
+    if (newName) {
+      person.name = newName;
+      // Update personName in their transactions
+      txns.forEach((t) => {
+        if (t.personId === personId) {
+          t.personName = newName;
+        }
+      });
+    }
+    person.phone = updates.phone?.trim() || undefined;
+
+    await this.saveData(persons, txns);
+    return person;
+  }
+
+  /**
+   * Edit an existing transaction.
+   */
+  async editTransaction(
+    txnId: string,
+    updates: {
+      type: KhataEntryType;
+      amount: number;
+      note?: string;
+      date?: string;
+      dueDate?: string;
+    }
+  ): Promise<KhataTransaction | null> {
+    const { persons, txns } = await this.loadData();
+    const txn = txns.find((t) => t.id === txnId);
+    if (!txn) return null;
+
+    txn.type = updates.type;
+    txn.amount = Math.abs(Number(updates.amount)) || 0;
+    txn.note = updates.note?.trim();
+    if (updates.date) txn.date = updates.date;
+    if (updates.dueDate !== undefined) txn.dueDate = updates.dueDate;
+
+    const person = persons.find((p) => p.id === txn.personId);
+    if (person) {
+      this.recalculatePerson(person, txns);
+    }
+
+    await this.saveData(persons, txns);
+    return txn;
+  }
+
+  /**
+   * Settle an entire account (Balance brought to 0).
+   */
+  async settlePerson(personId: string, note: string = 'Account settled'): Promise<KhataPerson | null> {
+    const { persons, txns } = await this.loadData();
     const person = persons.find((p) => p.id === personId);
     if (!person) return null;
 
     if (person.netBalance === 0) return person;
 
-    // If netBalance > 0 (lena tha), person paid us back (type: 'GOT' settlement)
-    // If netBalance < 0 (dena tha), we paid them back (type: 'GAVE' settlement)
-    const settleType: KhataEntryType = person.netBalance > 0 ? 'GOT' : 'GAVE';
     const settleAmount = Math.abs(person.netBalance);
 
     const settleTxn: KhataTransaction = {
@@ -264,11 +234,9 @@ class KhataService {
     txns.push(settleTxn);
     this.recalculatePerson(person, txns);
     person.lastTxnDate = settleTxn.date;
-    person.lastNote = '🤝 Hisab Barabar (Settled)';
+    person.lastNote = 'Settled';
 
-    await AsyncStorage.setItem(STORAGE_KEYS.KHATA_PERSONS, JSON.stringify(persons));
-    await AsyncStorage.setItem(STORAGE_KEYS.KHATA_TXNS, JSON.stringify(txns));
-
+    await this.saveData(persons, txns);
     return person;
   }
 
@@ -276,7 +244,7 @@ class KhataService {
    * Delete a transaction.
    */
   async deleteTransaction(txnId: string): Promise<void> {
-    const { persons, txns } = await this.ensureInitialized();
+    const { persons, txns } = await this.loadData();
     const targetIdx = txns.findIndex((t) => t.id === txnId);
     if (targetIdx === -1) return;
 
@@ -288,20 +256,18 @@ class KhataService {
       this.recalculatePerson(person, txns);
     }
 
-    await AsyncStorage.setItem(STORAGE_KEYS.KHATA_PERSONS, JSON.stringify(persons));
-    await AsyncStorage.setItem(STORAGE_KEYS.KHATA_TXNS, JSON.stringify(txns));
+    await this.saveData(persons, txns);
   }
 
   /**
    * Delete a person and all their transactions.
    */
   async deletePerson(personId: string): Promise<void> {
-    const { persons, txns } = await this.ensureInitialized();
+    const { persons, txns } = await this.loadData();
     const updatedPersons = persons.filter((p) => p.id !== personId);
     const updatedTxns = txns.filter((t) => t.personId !== personId);
 
-    await AsyncStorage.setItem(STORAGE_KEYS.KHATA_PERSONS, JSON.stringify(updatedPersons));
-    await AsyncStorage.setItem(STORAGE_KEYS.KHATA_TXNS, JSON.stringify(updatedTxns));
+    await this.saveData(updatedPersons, updatedTxns);
   }
 
   /**
@@ -315,9 +281,6 @@ class KhataService {
     for (const t of personTxns) {
       if (t.type === 'GAVE') gave += t.amount;
       else if (t.type === 'GOT') got += t.amount;
-      else if (t.type === 'SETTLE') {
-        // Settlement clears the previous gap
-      }
     }
 
     person.totalGave = gave;
@@ -327,12 +290,12 @@ class KhataService {
   }
 
   /**
-   * Get overall Khata summary for Dashboard & Header.
+   * Get overall summary for Dashboard & Header.
    */
   async getSummary(): Promise<KhataSummary> {
     const persons = await this.getPersons();
-    let totalReceivable = 0; // Lena Hai (+ve)
-    let totalPayable = 0;    // Dena Hai (-ve)
+    let totalReceivable = 0; // Receivable (+ve)
+    let totalPayable = 0;    // Payable (-ve)
 
     for (const p of persons) {
       if (p.netBalance > 0) {

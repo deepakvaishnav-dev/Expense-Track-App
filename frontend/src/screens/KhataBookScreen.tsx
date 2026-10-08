@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   TextInput,
   Modal,
-  Alert,
   Linking,
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -34,19 +33,33 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'RECEIVABLE' | 'PAYABLE' | 'SETTLED'>('ALL');
 
-  // Modal States
+  // Modals
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [editPersonModalVisible, setEditPersonModalVisible] = useState(false);
+  const [editTxnModalVisible, setEditTxnModalVisible] = useState(false);
+
+  // Selected State
   const [selectedPerson, setSelectedPerson] = useState<KhataPerson | null>(null);
   const [selectedPersonTxns, setSelectedPersonTxns] = useState<KhataTransaction[]>([]);
+  const [selectedTxnToEdit, setSelectedTxnToEdit] = useState<KhataTransaction | null>(null);
 
-  // Add Form Inputs
+  // Form Inputs
   const [entryType, setEntryType] = useState<KhataEntryType>('GAVE');
   const [personName, setPersonName] = useState('');
   const [phone, setPhone] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Edit Person Form Inputs
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+
+  // Edit Txn Form Inputs
+  const [editTxnType, setEditTxnType] = useState<KhataEntryType>('GAVE');
+  const [editTxnAmount, setEditTxnAmount] = useState('');
+  const [editTxnNote, setEditTxnNote] = useState('');
 
   useFocusEffect(
     useCallback(() => {
@@ -64,17 +77,19 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       setPersons(personsList);
       setSummary(sum);
 
-      // If a person is currently open in detail modal, refresh their data
       if (selectedPerson) {
         const updatedP = personsList.find((p) => p.id === selectedPerson.id);
         if (updatedP) {
           setSelectedPerson(updatedP);
           const txns = await khataService.getPersonTransactions(updatedP.id);
           setSelectedPersonTxns(txns);
+        } else {
+          setDetailModalVisible(false);
+          setSelectedPerson(null);
         }
       }
     } catch (e) {
-      console.warn('Error loading khata data:', e);
+      console.warn('Error loading accounts data:', e);
     } finally {
       setLoading(false);
     }
@@ -102,7 +117,7 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
   const handleSaveEntry = async () => {
     if (!personName.trim()) {
-      showCustomAlert('Required', 'Please enter a person name.', 'warning');
+      showCustomAlert('Required', 'Please enter a person or contact name.', 'warning');
       return;
     }
     const parsedAmount = parseFloat(amount);
@@ -123,31 +138,70 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
       setAddModalVisible(false);
       showCustomAlert(
-        'Entry Saved! ⚡',
-        `${entryType === 'GAVE' ? 'Maine Diye' : 'Maine Liye'}: ₹${parsedAmount.toLocaleString()} (${personName}) successfully logged.`,
+        'Record Saved!',
+        `${entryType === 'GAVE' ? 'Lent' : 'Borrowed'}: ₹${parsedAmount.toLocaleString()} (${personName}) recorded.`,
         'success'
       );
       await loadData();
     } catch (e) {
       console.warn(e);
-      showCustomAlert('Error', 'Failed to save transaction entry.', 'error');
+      showCustomAlert('Error', 'Failed to save record.', 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleSettleAccount = (person: KhataPerson) => {
+  // Edit Person Details
+  const handleOpenEditPerson = () => {
+    if (!selectedPerson) return;
+    setEditName(selectedPerson.name);
+    setEditPhone(selectedPerson.phone || '');
+    setEditPersonModalVisible(true);
+  };
+
+  const handleSaveEditPerson = async () => {
+    if (!selectedPerson || !editName.trim()) {
+      showCustomAlert('Required', 'Please provide a valid name.', 'warning');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const updated = await khataService.editPerson(selectedPerson.id, {
+        name: editName,
+        phone: editPhone,
+      });
+      if (updated) {
+        setSelectedPerson(updated);
+      }
+      setEditPersonModalVisible(false);
+      showCustomAlert('Updated!', 'Person details updated successfully.', 'success');
+      await loadData();
+    } catch (e) {
+      console.warn(e);
+      showCustomAlert('Error', 'Failed to update person.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Delete Person
+  const handleDeletePerson = () => {
+    if (!selectedPerson) return;
     showCustomAlert(
-      'Settle Account (Hisab Barabar)?',
-      `Clear pending balance of ₹${Math.abs(person.netBalance).toLocaleString()} for ${person.name}?`,
-      'info',
+      'Delete Contact?',
+      `Are you sure you want to completely delete "${selectedPerson.name}" and all associated transaction records?`,
+      'warning',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Settle Now',
+          text: 'Delete Permanently',
+          style: 'destructive',
           onPress: async () => {
-            await khataService.settlePerson(person.id);
-            showCustomAlert('Settled! 🤝', `Account with ${person.name} marked as settled.`, 'success');
+            await khataService.deletePerson(selectedPerson.id);
+            setDetailModalVisible(false);
+            setSelectedPerson(null);
+            showCustomAlert('Deleted', 'Contact and records removed.', 'info');
             await loadData();
           },
         },
@@ -155,10 +209,47 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     );
   };
 
+  // Edit Transaction Entry
+  const handleOpenEditTxn = (txn: KhataTransaction) => {
+    setSelectedTxnToEdit(txn);
+    setEditTxnType(txn.type === 'SETTLE' ? 'GAVE' : txn.type);
+    setEditTxnAmount(txn.amount.toString());
+    setEditTxnNote(txn.note || '');
+    setEditTxnModalVisible(true);
+  };
+
+  const handleSaveEditTxn = async () => {
+    if (!selectedTxnToEdit) return;
+    const parsedAmount = parseFloat(editTxnAmount);
+    if (!parsedAmount || parsedAmount <= 0) {
+      showCustomAlert('Invalid Amount', 'Please enter a valid amount.', 'warning');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await khataService.editTransaction(selectedTxnToEdit.id, {
+        type: editTxnType,
+        amount: parsedAmount,
+        note: editTxnNote,
+      });
+      setEditTxnModalVisible(false);
+      setSelectedTxnToEdit(null);
+      showCustomAlert('Entry Updated', 'Transaction record updated successfully.', 'success');
+      await loadData();
+    } catch (e) {
+      console.warn(e);
+      showCustomAlert('Error', 'Failed to update transaction.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Delete Transaction Entry
   const handleDeleteTxn = (txnId: string) => {
     showCustomAlert(
       'Delete Entry?',
-      'Are you sure you want to remove this transaction record?',
+      'Are you sure you want to remove this record from the ledger?',
       'warning',
       [
         { text: 'Cancel', style: 'cancel' },
@@ -178,14 +269,35 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     );
   };
 
+  // Settle Account
+  const handleSettleAccount = (person: KhataPerson) => {
+    showCustomAlert(
+      'Settle Account?',
+      `Clear pending balance of ₹${Math.abs(person.netBalance).toLocaleString()} for ${person.name}?`,
+      'info',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Settle Now',
+          onPress: async () => {
+            await khataService.settlePerson(person.id);
+            showCustomAlert('Account Settled', `All dues for ${person.name} marked as settled.`, 'success');
+            await loadData();
+          },
+        },
+      ]
+    );
+  };
+
+  // WhatsApp Reminder
   const handleSendWhatsAppReminder = (person: KhataPerson) => {
     if (person.netBalance <= 0) {
-      showCustomAlert('No Pending Dues', `${person.name} does not have any pending amount to collect.`, 'info');
+      showCustomAlert('No Pending Amount', `${person.name} does not have any pending receivable amount.`, 'info');
       return;
     }
 
     const message = encodeURIComponent(
-      `Namaste ${person.name}, gentle reminder regarding pending balance of ₹${person.netBalance.toLocaleString()} on our Expense Tracker account. Thank you!`
+      `Hi ${person.name}, gentle reminder regarding pending balance of ₹${person.netBalance.toLocaleString()} recorded in Accounts Book. Thank you!`
     );
 
     const cleanPhone = person.phone ? person.phone.replace(/[^0-9]/g, '') : '';
@@ -196,15 +308,14 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         if (supported) {
           Linking.openURL(url);
         } else {
-          showCustomAlert('WhatsApp Not Found', 'Could not open WhatsApp on this device.', 'warning');
+          showCustomAlert('WhatsApp Not Available', 'WhatsApp app is not installed or available on this device.', 'warning');
         }
       })
       .catch(() => {
-        showCustomAlert('Error', 'Failed to open WhatsApp.', 'error');
+        showCustomAlert('Error', 'Could not open WhatsApp.', 'error');
       });
   };
 
-  // Filter persons list
   const filteredPersons = persons.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -221,7 +332,7 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
   return (
     <View className="flex-1 bg-gray-50">
-      {/* Top Header */}
+      {/* Top Header - Pure English, Clean, No top right plus button */}
       <View className="bg-blue-600 pt-12 pb-6 px-6 rounded-b-[36px] shadow-md">
         <View className="flex-row items-center justify-between mb-4">
           <TouchableOpacity
@@ -230,48 +341,44 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           >
             <Text className="text-white text-xl font-bold">←</Text>
           </TouchableOpacity>
-          <View className="items-center">
-            <Text className="text-white text-xl font-black">KhataBook (Udhaar)</Text>
+          <View className="items-center flex-1">
+            <Text className="text-white text-xl font-black">Accounts Book</Text>
             <Text className="text-blue-100 text-[11px] font-medium">Person-to-Person Ledger</Text>
           </View>
-          <TouchableOpacity
-            onPress={() => handleOpenAdd('GAVE')}
-            className="w-10 h-10 bg-white rounded-full items-center justify-center shadow-sm"
-          >
-            <Text className="text-blue-600 text-2xl font-black leading-6">+</Text>
-          </TouchableOpacity>
+          {/* Spacer to keep title centered without top right plus button */}
+          <View className="w-10 h-10" />
         </View>
 
-        {/* Khata Dual Metric Summary Cards */}
+        {/* Dual Metric Summary Cards (All English) */}
         <View className="flex-row justify-between mt-1">
-          {/* Kul Lena Hai (Receivable) */}
+          {/* Total Receivable */}
           <View className="w-[48%] bg-white rounded-2xl p-3.5 shadow-sm border border-emerald-100">
             <View className="flex-row items-center mb-1">
               <View className="w-2 h-2 rounded-full bg-emerald-500 mr-1.5" />
-              <Text className="text-emerald-700 text-[10px] font-black tracking-wider">KUL LENA HAI (GET)</Text>
+              <Text className="text-emerald-700 text-[10px] font-black tracking-wider">TOTAL RECEIVABLE</Text>
             </View>
             <Text className="text-emerald-900 text-xl font-black">
               ₹{summary.totalReceivable.toLocaleString()}
             </Text>
-            <Text className="text-gray-400 text-[9px] mt-0.5">Maine Udhaar Diye</Text>
+            <Text className="text-gray-400 text-[9px] mt-0.5">You Lent (To Receive)</Text>
           </View>
 
-          {/* Kul Dena Hai (Payable) */}
+          {/* Total Payable */}
           <View className="w-[48%] bg-white rounded-2xl p-3.5 shadow-sm border border-rose-100">
             <View className="flex-row items-center mb-1">
               <View className="w-2 h-2 rounded-full bg-rose-500 mr-1.5" />
-              <Text className="text-rose-700 text-[10px] font-black tracking-wider">KUL DENA HAI (GIVE)</Text>
+              <Text className="text-rose-700 text-[10px] font-black tracking-wider">TOTAL PAYABLE</Text>
             </View>
             <Text className="text-rose-900 text-xl font-black">
               ₹{summary.totalPayable.toLocaleString()}
             </Text>
-            <Text className="text-gray-400 text-[9px] mt-0.5">Maine Udhaar Liye</Text>
+            <Text className="text-gray-400 text-[9px] mt-0.5">You Borrowed (To Pay)</Text>
           </View>
         </View>
 
         {/* Net Balance Pill */}
-        <View className="mt-3 bg-blue-700/60 rounded-xl py-1.5 px-3 flex-row items-center justify-between">
-          <Text className="text-blue-100 text-[11px] font-bold">Net Balance (Hisab):</Text>
+        <View className="mt-3 bg-blue-700/60 rounded-xl py-1.5 px-3.5 flex-row items-center justify-between">
+          <Text className="text-blue-100 text-[11px] font-bold">Net Balance:</Text>
           <Text className={`text-xs font-black ${summary.netBalance >= 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
             {summary.netBalance >= 0 ? '+' : '-'}₹{Math.abs(summary.netBalance).toLocaleString()} {summary.netBalance >= 0 ? '(You will receive)' : '(You owe)'}
           </Text>
@@ -285,7 +392,7 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           <View className="flex-row items-center bg-white px-3.5 py-2.5 rounded-2xl border border-gray-200 shadow-2xs mb-2.5">
             <Text className="text-gray-400 text-sm mr-2">🔍</Text>
             <TextInput
-              placeholder="Search person name, phone, or note..."
+              placeholder="Search by name, phone, or note..."
               placeholderTextColor="#9ca3af"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -298,12 +405,12 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             )}
           </View>
 
-          {/* Filter Chips */}
+          {/* Filter Chips - Pure English */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
             {[
               { id: 'ALL', label: `All (${persons.length})` },
-              { id: 'RECEIVABLE', label: `🟢 Lena Hai (${persons.filter((p) => p.netBalance > 0).length})` },
-              { id: 'PAYABLE', label: `🔴 Dena Hai (${persons.filter((p) => p.netBalance < 0).length})` },
+              { id: 'RECEIVABLE', label: `🟢 Receivable (${persons.filter((p) => p.netBalance > 0).length})` },
+              { id: 'PAYABLE', label: `🔴 Payable (${persons.filter((p) => p.netBalance < 0).length})` },
               { id: 'SETTLED', label: `🤝 Settled (${persons.filter((p) => p.netBalance === 0).length})` },
             ].map((f) => (
               <TouchableOpacity
@@ -333,25 +440,18 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             <ActivityIndicator size="large" color="#3b82f6" />
           </View>
         ) : filteredPersons.length === 0 ? (
-          <View className="flex-1 items-center justify-center py-12">
-            <Text className="text-4xl mb-3">📒</Text>
-            <Text className="text-gray-800 text-sm font-bold">No Khata Records Found</Text>
+          <View className="flex-1 items-center justify-center py-14">
+            <Text className="text-5xl mb-3">📒</Text>
+            <Text className="text-gray-900 text-base font-black">No Accounts Added Yet</Text>
             <Text className="text-gray-400 text-xs text-center mt-1 px-8">
-              Tap "+ Add New Udhaar" below to log money given to or received from a friend or contact.
+              Tap the buttons below to record money you lent or borrowed with friends and contacts.
             </Text>
-            <TouchableOpacity
-              onPress={() => handleOpenAdd('GAVE')}
-              className="mt-4 bg-blue-600 px-5 py-2.5 rounded-full shadow-sm"
-            >
-              <Text className="text-white text-xs font-bold">+ Add First Person</Text>
-            </TouchableOpacity>
           </View>
         ) : (
           <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
             {filteredPersons.map((person) => {
               const isReceivable = person.netBalance > 0;
               const isPayable = person.netBalance < 0;
-              const isSettled = person.netBalance === 0;
 
               return (
                 <TouchableOpacity
@@ -417,40 +517,42 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                             : 'text-gray-500'
                         }`}
                       >
-                        {isReceivable ? 'LENA HAI' : isPayable ? 'DENA HAI' : 'SETTLED'}
+                        {isReceivable ? 'RECEIVABLE' : isPayable ? 'PAYABLE' : 'SETTLED'}
                       </Text>
                     </View>
                   </View>
                 </TouchableOpacity>
               );
             })}
-            <View className="h-20" />
+            <View className="h-28" />
           </ScrollView>
         )}
       </View>
 
-      {/* Floating Bottom Quick Add Bar */}
-      <View className="absolute bottom-5 left-5 right-5 flex-row justify-between">
+      {/* Prominent Bottom Action Bar with Plus (+) Icon */}
+      <View className="absolute bottom-5 left-5 right-5 flex-row items-center justify-between">
+        {/* + Lent Button */}
         <TouchableOpacity
           onPress={() => handleOpenAdd('GAVE')}
           activeOpacity={0.85}
-          className="flex-1 mr-2 bg-emerald-600 py-3.5 px-4 rounded-2xl flex-row items-center justify-center shadow-md shadow-emerald-600/30"
+          className="flex-1 mr-2 bg-emerald-600 py-3.5 px-3 rounded-2xl flex-row items-center justify-center shadow-lg shadow-emerald-600/30"
         >
-          <Text className="text-white text-base mr-1.5 font-black">+</Text>
-          <Text className="text-white text-xs font-black">MAINE DIYE (GAVE)</Text>
+          <Text className="text-white text-lg mr-1.5 font-black leading-5">+</Text>
+          <Text className="text-white text-xs font-black tracking-wide">LENT (YOU GAVE)</Text>
         </TouchableOpacity>
 
+        {/* - Borrowed Button */}
         <TouchableOpacity
           onPress={() => handleOpenAdd('GOT')}
           activeOpacity={0.85}
-          className="flex-1 ml-2 bg-rose-600 py-3.5 px-4 rounded-2xl flex-row items-center justify-center shadow-md shadow-rose-600/30"
+          className="flex-1 ml-2 bg-rose-600 py-3.5 px-3 rounded-2xl flex-row items-center justify-center shadow-lg shadow-rose-600/30"
         >
-          <Text className="text-white text-base mr-1.5 font-black">-</Text>
-          <Text className="text-white text-xs font-black">MAINE LIYE (GOT)</Text>
+          <Text className="text-white text-lg mr-1.5 font-black leading-5">-</Text>
+          <Text className="text-white text-xs font-black tracking-wide">BORROWED (YOU GOT)</Text>
         </TouchableOpacity>
       </View>
 
-      {/* MODAL 1: ADD UDHAAR TRANSACTION */}
+      {/* MODAL 1: ADD TRANSACTION */}
       <Modal visible={addModalVisible} transparent animationType="slide">
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -460,7 +562,7 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             {/* Modal Header */}
             <View className="flex-row justify-between items-center mb-4">
               <Text className="text-gray-900 text-lg font-black">
-                {entryType === 'GAVE' ? '🟢 Maine Diye (Udhaar Diya)' : '🔴 Maine Liye (Udhaar Liya)'}
+                {entryType === 'GAVE' ? '🟢 Lent (Money You Gave)' : '🔴 Borrowed (Money You Took)'}
               </Text>
               <TouchableOpacity onPress={() => setAddModalVisible(false)} className="p-1">
                 <Text className="text-gray-400 text-base font-bold">✕</Text>
@@ -480,7 +582,7 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                     entryType === 'GAVE' ? 'text-white' : 'text-gray-600'
                   }`}
                 >
-                  + Maine Diye (Lena Hai)
+                  + Lent (Receivable)
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -494,16 +596,16 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                     entryType === 'GOT' ? 'text-white' : 'text-gray-600'
                   }`}
                 >
-                  - Maine Liye (Dena Hai)
+                  - Borrowed (Payable)
                 </Text>
               </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
               {/* Person Name Input */}
-              <Text className="text-gray-700 text-xs font-bold mb-1.5">Person Name *</Text>
+              <Text className="text-gray-700 text-xs font-bold mb-1.5">Contact / Person Name *</Text>
               <TextInput
-                placeholder="e.g. Aniket Sharma, Deepak, Rahul"
+                placeholder="e.g. John Doe, Alex, Sarah"
                 placeholderTextColor="#9ca3af"
                 value={personName}
                 onChangeText={setPersonName}
@@ -524,7 +626,7 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
               {/* Phone Number (Optional) */}
               <Text className="text-gray-700 text-xs font-bold mb-1.5">Phone Number (Optional)</Text>
               <TextInput
-                placeholder="e.g. +91 98765 43210 (For WhatsApp reminder)"
+                placeholder="e.g. +91 98765 43210 (For WhatsApp reminders)"
                 placeholderTextColor="#9ca3af"
                 value={phone}
                 onChangeText={setPhone}
@@ -533,9 +635,9 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
               />
 
               {/* Reason / Note */}
-              <Text className="text-gray-700 text-xs font-bold mb-1.5">Note / Reason</Text>
+              <Text className="text-gray-700 text-xs font-bold mb-1.5">Description / Reason</Text>
               <TextInput
-                placeholder="e.g. Dinner share, Bike petrol, Urgent loan"
+                placeholder="e.g. Dinner share, Fuel expense, Cash loan"
                 placeholderTextColor="#9ca3af"
                 value={note}
                 onChangeText={setNote}
@@ -554,7 +656,7 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                   <ActivityIndicator color="#ffffff" />
                 ) : (
                   <Text className="text-white text-xs font-black">
-                    Save {entryType === 'GAVE' ? 'Udhaar Diya' : 'Udhaar Liya'} Entry
+                    Save {entryType === 'GAVE' ? 'Lent Record' : 'Borrowed Record'}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -576,16 +678,26 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 >
                   <Text className="text-white text-xl font-bold">←</Text>
                 </TouchableOpacity>
-                <Text className="text-white text-lg font-black">Khata Statement</Text>
-                <TouchableOpacity
-                  onPress={() => handleSettleAccount(selectedPerson)}
-                  className="px-3 py-1.5 bg-white/20 rounded-full"
-                >
-                  <Text className="text-white text-[11px] font-bold">🤝 Settle</Text>
-                </TouchableOpacity>
+                <Text className="text-white text-lg font-black">Account Ledger</Text>
+                
+                {/* Actions: Edit & Delete Person */}
+                <View className="flex-row items-center space-x-2">
+                  <TouchableOpacity
+                    onPress={handleOpenEditPerson}
+                    className="w-9 h-9 bg-white/20 rounded-full items-center justify-center mr-2"
+                  >
+                    <Text className="text-sm">✏️</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={handleDeletePerson}
+                    className="w-9 h-9 bg-rose-500/80 rounded-full items-center justify-center"
+                  >
+                    <Text className="text-sm">🗑️</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
-              {/* Person Big Info Box */}
+              {/* Person Info Card */}
               <View className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 items-center">
                 <View
                   style={{ backgroundColor: selectedPerson.color }}
@@ -613,23 +725,34 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                     }`}
                   >
                     {selectedPerson.netBalance > 0
-                      ? `₹${selectedPerson.netBalance.toLocaleString()} LENA HAI`
+                      ? `₹${selectedPerson.netBalance.toLocaleString()} RECEIVABLE`
                       : selectedPerson.netBalance < 0
-                      ? `₹${Math.abs(selectedPerson.netBalance).toLocaleString()} DENA HAI`
-                      : 'HISAB BARABAR 🤝'}
+                      ? `₹${Math.abs(selectedPerson.netBalance).toLocaleString()} PAYABLE`
+                      : 'SETTLED 🤝'}
                   </Text>
                 </View>
 
-                {/* WhatsApp Reminder Button */}
-                {selectedPerson.netBalance > 0 && (
-                  <TouchableOpacity
-                    onPress={() => handleSendWhatsAppReminder(selectedPerson)}
-                    className="mt-3 bg-emerald-50 border border-emerald-200 px-4 py-2 rounded-full flex-row items-center"
-                  >
-                    <Text className="mr-1.5">💬</Text>
-                    <Text className="text-emerald-700 text-xs font-bold">Send Reminder on WhatsApp</Text>
-                  </TouchableOpacity>
-                )}
+                {/* Settle and WhatsApp Action Buttons */}
+                <View className="flex-row items-center mt-3 space-x-2">
+                  {selectedPerson.netBalance !== 0 && (
+                    <TouchableOpacity
+                      onPress={() => handleSettleAccount(selectedPerson)}
+                      className="bg-blue-50 border border-blue-200 px-3.5 py-1.5 rounded-full mr-2"
+                    >
+                      <Text className="text-blue-700 text-xs font-bold">🤝 Settle Account</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {selectedPerson.netBalance > 0 && (
+                    <TouchableOpacity
+                      onPress={() => handleSendWhatsAppReminder(selectedPerson)}
+                      className="bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-full flex-row items-center"
+                    >
+                      <Text className="mr-1">💬</Text>
+                      <Text className="text-emerald-700 text-xs font-bold">WhatsApp Reminder</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             </View>
 
@@ -639,7 +762,7 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
               {selectedPersonTxns.length === 0 ? (
                 <View className="flex-1 items-center justify-center">
-                  <Text className="text-gray-400 text-xs font-bold">No entries found for this person.</Text>
+                  <Text className="text-gray-400 text-xs font-bold">No entries found for this contact.</Text>
                 </View>
               ) : (
                 <ScrollView showsVerticalScrollIndicator={false}>
@@ -665,11 +788,11 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                               }`}
                             />
                             <Text className="text-gray-900 text-xs font-black">
-                              {isGave ? 'Maine Diye' : isSettle ? 'Hisab Barabar' : 'Maine Liye'}
+                              {isGave ? 'Lent (Gave)' : isSettle ? 'Settled' : 'Borrowed (Got)'}
                             </Text>
                           </View>
                           <Text className="text-gray-500 text-[11px]" numberOfLines={2}>
-                            {txn.note || 'No notes added'}
+                            {txn.note || 'No description'}
                           </Text>
                           <Text className="text-gray-400 text-[9px] mt-1">{dateFormatted}</Text>
                         </View>
@@ -682,38 +805,160 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                           >
                             {isGave ? '+' : isSettle ? '' : '-'}₹{txn.amount.toLocaleString()}
                           </Text>
-                          <TouchableOpacity
-                            onPress={() => handleDeleteTxn(txn.id)}
-                            className="mt-1 px-2 py-0.5 bg-gray-100 rounded"
-                          >
-                            <Text className="text-gray-400 text-[9px] font-bold">Delete</Text>
-                          </TouchableOpacity>
+                          
+                          {/* Edit & Delete Actions for Entry */}
+                          <View className="flex-row items-center mt-1.5 space-x-1">
+                            <TouchableOpacity
+                              onPress={() => handleOpenEditTxn(txn)}
+                              className="px-2 py-0.5 bg-gray-100 rounded mr-1"
+                            >
+                              <Text className="text-blue-600 text-[9px] font-bold">Edit</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => handleDeleteTxn(txn.id)}
+                              className="px-2 py-0.5 bg-gray-100 rounded"
+                            >
+                              <Text className="text-rose-500 text-[9px] font-bold">Delete</Text>
+                            </TouchableOpacity>
+                          </View>
                         </View>
                       </View>
                     );
                   })}
-                  <View className="h-24" />
+                  <View className="h-28" />
                 </ScrollView>
               )}
             </View>
 
-            {/* Quick Actions at Bottom of Detail Modal */}
+            {/* Bottom Add Actions inside Person View */}
             <View className="absolute bottom-5 left-5 right-5 flex-row justify-between">
               <TouchableOpacity
                 onPress={() => handleOpenAdd('GAVE', selectedPerson.name)}
-                className="flex-1 mr-2 bg-emerald-600 py-3.5 rounded-2xl items-center justify-center shadow-md shadow-emerald-600/30"
+                className="flex-1 mr-2 bg-emerald-600 py-3.5 rounded-2xl items-center justify-center shadow-lg shadow-emerald-600/30"
               >
-                <Text className="text-white text-xs font-black">+ Maine Diye (Gave)</Text>
+                <Text className="text-white text-xs font-black">+ LENT (YOU GAVE)</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => handleOpenAdd('GOT', selectedPerson.name)}
-                className="flex-1 ml-2 bg-rose-600 py-3.5 rounded-2xl items-center justify-center shadow-md shadow-rose-600/30"
+                className="flex-1 ml-2 bg-rose-600 py-3.5 rounded-2xl items-center justify-center shadow-lg shadow-rose-600/30"
               >
-                <Text className="text-white text-xs font-black">- Maine Liye (Got)</Text>
+                <Text className="text-white text-xs font-black">- BORROWED (YOU GOT)</Text>
               </TouchableOpacity>
             </View>
           </View>
         )}
+      </Modal>
+
+      {/* MODAL 3: EDIT PERSON DETAILS */}
+      <Modal visible={editPersonModalVisible} transparent animationType="fade">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          className="flex-1 justify-center items-center bg-black/60 px-6"
+        >
+          <View className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl">
+            <View className="flex-row justify-between items-center mb-4">
+              <Text className="text-gray-900 text-base font-black">Edit Contact Details</Text>
+              <TouchableOpacity onPress={() => setEditPersonModalVisible(false)}>
+                <Text className="text-gray-400 text-base font-bold">✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text className="text-gray-700 text-xs font-bold mb-1.5">Contact Name *</Text>
+            <TextInput
+              value={editName}
+              onChangeText={setEditName}
+              className="bg-gray-100 rounded-2xl px-4 py-3 text-xs text-gray-900 font-bold mb-3 border border-gray-200"
+            />
+
+            <Text className="text-gray-700 text-xs font-bold mb-1.5">Phone Number (Optional)</Text>
+            <TextInput
+              value={editPhone}
+              onChangeText={setEditPhone}
+              keyboardType="phone-pad"
+              className="bg-gray-100 rounded-2xl px-4 py-3 text-xs text-gray-900 font-medium mb-5 border border-gray-200"
+            />
+
+            <TouchableOpacity
+              onPress={handleSaveEditPerson}
+              disabled={saving}
+              className="bg-blue-600 py-3.5 rounded-2xl items-center justify-center"
+            >
+              {saving ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text className="text-white text-xs font-black">Save Changes</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* MODAL 4: EDIT TRANSACTION ENTRY */}
+      <Modal visible={editTxnModalVisible} transparent animationType="fade">
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          className="flex-1 justify-center items-center bg-black/60 px-6"
+        >
+          <View className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-xl">
+            <View className="flex-row justify-between items-center mb-4">
+              <Text className="text-gray-900 text-base font-black">Edit Entry</Text>
+              <TouchableOpacity onPress={() => setEditTxnModalVisible(false)}>
+                <Text className="text-gray-400 text-base font-bold">✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Type Selector */}
+            <View className="flex-row bg-gray-100 p-1 rounded-2xl mb-4">
+              <TouchableOpacity
+                onPress={() => setEditTxnType('GAVE')}
+                className={`flex-1 py-2 rounded-xl items-center ${
+                  editTxnType === 'GAVE' ? 'bg-emerald-600 shadow-xs' : ''
+                }`}
+              >
+                <Text className={`text-xs font-black ${editTxnType === 'GAVE' ? 'text-white' : 'text-gray-600'}`}>
+                  + Lent
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setEditTxnType('GOT')}
+                className={`flex-1 py-2 rounded-xl items-center ${
+                  editTxnType === 'GOT' ? 'bg-rose-600 shadow-xs' : ''
+                }`}
+              >
+                <Text className={`text-xs font-black ${editTxnType === 'GOT' ? 'text-white' : 'text-gray-600'}`}>
+                  - Borrowed
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text className="text-gray-700 text-xs font-bold mb-1.5">Amount (₹) *</Text>
+            <TextInput
+              value={editTxnAmount}
+              onChangeText={setEditTxnAmount}
+              keyboardType="numeric"
+              className="bg-gray-100 rounded-2xl px-4 py-3 text-lg text-gray-900 font-black mb-3 border border-gray-200"
+            />
+
+            <Text className="text-gray-700 text-xs font-bold mb-1.5">Description / Reason</Text>
+            <TextInput
+              value={editTxnNote}
+              onChangeText={setEditTxnNote}
+              className="bg-gray-100 rounded-2xl px-4 py-3 text-xs text-gray-900 font-medium mb-5 border border-gray-200"
+            />
+
+            <TouchableOpacity
+              onPress={handleSaveEditTxn}
+              disabled={saving}
+              className="bg-blue-600 py-3.5 rounded-2xl items-center justify-center"
+            >
+              {saving ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text className="text-white text-xs font-black">Update Entry</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
