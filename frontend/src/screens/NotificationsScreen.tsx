@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { api } from '../services/api';
+import { showCustomAlert } from '../store/alertStore';
 
 export const NotificationsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -17,7 +18,7 @@ export const NotificationsScreen: React.FC<{ navigation: any }> = ({ navigation 
       setNotifications(response.data);
     } catch (e: any) {
       console.warn(e);
-      Alert.alert('Load Error', 'Failed to retrieve notifications list.');
+      showCustomAlert('Load Error', 'Failed to retrieve notifications list.', 'error');
     } finally {
       setLoading(false);
     }
@@ -39,10 +40,10 @@ export const NotificationsScreen: React.FC<{ navigation: any }> = ({ navigation 
     try {
       await api.put('/notifications/read-all');
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-      Alert.alert('Success', 'All notifications marked as read.');
+      showCustomAlert('Success', 'All notifications marked as read.', 'success');
     } catch (e: any) {
       console.warn(e);
-      Alert.alert('Error', 'Failed to update notifications.');
+      showCustomAlert('Error', 'Failed to update notifications.', 'error');
     }
   };
 

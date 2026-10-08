@@ -24,7 +24,7 @@ MEDIA_DIR = os.path.realpath(os.path.join(os.path.dirname(os.path.dirname(os.pat
 RECEIPTS_DIR = os.path.realpath(os.path.join(MEDIA_DIR, "receipts"))
 os.makedirs(RECEIPTS_DIR, exist_ok=True)
 
-MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5 MB ceiling
+MAX_UPLOAD_SIZE = 20 * 1024 * 1024  # 20 MB ceiling
 
 def detect_image_mime_and_extension(data: bytes) -> tuple[str, str]:
     """
@@ -51,15 +51,15 @@ async def scan_receipt(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Accepts a receipt image, verifies magic bytes, enforces 5MB limit, saves to receipts dir,
+    Accepts a receipt image, verifies magic bytes, enforces 20MB limit, saves to receipts dir,
     performs Gemini-driven OCR, creates transaction, updates accounts with row lock, and links receipt.
     """
-    # 1. Read file bytes and enforce strict 5MB file size limit
+    # 1. Read file bytes and enforce strict 20MB file size limit
     img_bytes = await file.read()
     if len(img_bytes) > MAX_UPLOAD_SIZE:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="File size exceeds the 5MB upload limit."
+            detail="File size exceeds the 20MB upload limit."
         )
     if len(img_bytes) == 0:
         raise HTTPException(

@@ -10,47 +10,13 @@ import { ScanReceiptScreen } from '../screens/ScanReceiptScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { TransactionsListScreen } from '../screens/TransactionsListScreen';
 import { AIAssistantChatScreen } from '../screens/AIAssistantChatScreen';
+import { ProfileScreen } from '../screens/ProfileScreen';
 import { useAuthStore } from '../store/authStore';
-import { View, Text, TouchableOpacity, Alert, Platform } from 'react-native';
-
-
+import { showCustomAlert } from '../store/alertStore';
+import { View, Text, TouchableOpacity, Platform } from 'react-native';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
-
-// Placeholder Settings Screen with Logout
-const SettingsScreen = () => {
-  const logout = useAuthStore((state: any) => state.logout);
-  const user = useAuthStore((state: any) => state.user);
-
-  return (
-    <View className="flex-1 bg-dark-bg justify-center items-center p-6">
-      <View className="w-20 h-20 bg-primary-500/20 rounded-full items-center justify-center mb-4">
-        <Text className="text-4xl">👤</Text>
-      </View>
-      <Text className="text-dark-text text-xl font-bold">{user?.full_name}</Text>
-      <Text className="text-gray-400 text-sm mb-8">{user?.email}</Text>
-      
-      <TouchableOpacity
-        onPress={logout}
-        className="bg-accent-red py-4 px-8 rounded-xl items-center shadow-lg w-full"
-      >
-        <Text className="text-white font-bold text-lg">Log Out</Text>
-      </TouchableOpacity>
-    </View>
-  );
-};
-
-// Placeholder Reports Screen
-const ReportsScreen = () => {
-  return (
-    <View className="flex-1 bg-dark-bg justify-center items-center p-6">
-      <Text className="text-3xl mb-2">📊</Text>
-      <Text className="text-dark-text text-xl font-bold">Statements & Reports</Text>
-      <Text className="text-gray-400 text-sm text-center mt-2">Export CSV and PDF summaries from the backend locally to your downloads.</Text>
-    </View>
-  );
-};
 
 // Bottom Tab Navigation for Logged-In Context
 const TabNavigator = () => {
@@ -91,19 +57,16 @@ const TabNavigator = () => {
         listeners={({ navigation }) => ({
           tabPress: (e) => {
             e.preventDefault();
-            if (Platform.OS === 'web') {
-              navigation.navigate('AddTransaction');
-            } else {
-              Alert.alert(
-                'Add Transaction',
-                'Choose transaction entry method:',
-                [
-                  { text: 'Manual Entry Form', onPress: () => navigation.navigate('AddTransaction') },
-                  { text: 'Scan Receipt Image', onPress: () => navigation.navigate('ScanReceipt') },
-                  { text: 'Cancel', style: 'cancel' }
-                ]
-              );
-            }
+            showCustomAlert(
+              'Add Transaction',
+              'Choose how you want to log your transaction:',
+              'info',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Manual Entry', onPress: () => navigation.navigate('AddTransaction') },
+                { text: 'Scan Receipt', onPress: () => navigation.navigate('ScanReceipt') },
+              ]
+            );
           },
         })}
         options={{
@@ -142,7 +105,7 @@ const TabNavigator = () => {
       />
       <Tab.Screen 
         name="Settings" 
-        component={SettingsScreen} 
+        component={ProfileScreen} 
         options={{
           tabBarLabel: 'Profile',
           tabBarIcon: ({ color }: { color: string }) => <Text style={{ color, fontSize: 22 }}>👤</Text>,

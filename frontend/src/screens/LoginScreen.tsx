@@ -4,6 +4,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { showCustomAlert } from '../store/alertStore';
 
 interface LoginScreenProps {
   navigation: NativeStackNavigationProp<any>;
@@ -45,7 +46,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     } catch (error: any) {
       console.warn(error);
       const msg = error.response?.data?.detail || 'Something went wrong. Please try again.';
-      Alert.alert('Login Failed', msg);
+      showCustomAlert('Login Failed', msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -116,7 +117,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
         {/* Forgot Password Trigger */}
         <TouchableOpacity
-          onPress={() => Alert.alert('Reset Password', 'An email has been sent with recovery instructions if that account exists.')}
+          onPress={() => showCustomAlert('Reset Password', 'An email has been sent with recovery instructions if that account exists.', 'info')}
           className="items-end py-2"
         >
           <Text className="text-primary-400 font-semibold text-sm">Forgot Password?</Text>

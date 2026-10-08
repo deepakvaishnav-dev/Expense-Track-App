@@ -4,6 +4,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { showCustomAlert } from '../store/alertStore';
 
 interface RegisterScreenProps {
   navigation: NativeStackNavigationProp<any>;
@@ -48,15 +49,16 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) =>
 
       // 4. Save and Navigate
       loginStore(userProfile.data, access_token, refresh_token);
-      Alert.alert(
+      showCustomAlert(
         'Registration Successful',
         'Your account has been created and default categories have been loaded.',
-        [{ text: 'OK', onPress: () => navigation.replace('Main') }]
+        'success',
+        [{ text: 'Get Started', onPress: () => navigation.replace('Main') }]
       );
     } catch (error: any) {
       console.warn(error);
       const msg = error.response?.data?.detail || 'Registration failed. Please try again.';
-      Alert.alert('Registration Failed', msg);
+      showCustomAlert('Registration Failed', msg, 'error');
     } finally {
       setLoading(false);
     }

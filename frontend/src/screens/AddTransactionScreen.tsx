@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { api } from '../services/api';
+import { DatePickerModal } from '../components/common';
+import { showCustomAlert } from '../store/alertStore';
 
 export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = ({ route, navigation }) => {
   const [loading, setLoading] = useState(false);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [fetchingData, setFetchingData] = useState(true);
-
+  
   const transactionToEdit = route.params?.transaction;
+  const [selectedDate, setSelectedDate] = useState<Date>(
+    transactionToEdit?.date ? new Date(transactionToEdit.date) : new Date()
+  );
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const { control, handleSubmit, setValue, watch, formState: { errors }, reset } = useForm({
     defaultValues: {
@@ -64,11 +70,7 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
       }
     } catch (e: any) {
       console.warn(e);
-      if (Platform.OS === 'web') {
-        (globalThis as any).alert('Failed to retrieve accounts or categories lists.');
-      } else {
-        Alert.alert('Load Error', 'Failed to retrieve accounts or categories lists.');
-      }
+      showCustomAlert('Load Error', 'Failed to retrieve accounts or categories lists.', 'error');
     } finally {
       setFetchingData(false);
     }
@@ -90,6 +92,7 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
           payment_method: data.paymentMethod,
           notes: data.notes.trim() || null,
           tags: tags,
+          date: selectedDate.toISOString(),
         });
       } else {
         // Create new transaction
@@ -102,7 +105,7 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
           payment_method: data.paymentMethod,
           notes: data.notes.trim() || null,
           tags: tags,
-          date: new Date().toISOString(),
+          date: selectedDate.toISOString(),
         });
       }
 
@@ -118,26 +121,18 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
         tagsInput: '',
       });
       
-      if (Platform.OS === 'web') {
-        (globalThis as any).alert(transactionToEdit ? 'Transaction updated successfully.' : 'Transaction logged successfully.');
-        navigation.pop();
-      } else {
-        Alert.alert(
-          'Success', 
-          transactionToEdit ? 'Transaction updated successfully.' : 'Transaction logged successfully.', 
-          [
-            { text: 'OK', onPress: () => navigation.pop() }
-          ]
-        );
-      }
+      showCustomAlert(
+        'Success', 
+        transactionToEdit ? 'Transaction updated successfully.' : 'Transaction logged successfully.', 
+        'success',
+        [
+          { text: 'Great!', onPress: () => navigation.pop() }
+        ]
+      );
     } catch (error: any) {
       console.warn(error);
       const msg = error.response?.data?.detail || 'Failed to save transaction.';
-      if (Platform.OS === 'web') {
-        (globalThis as any).alert(msg);
-      } else {
-        Alert.alert('Save Error', msg);
-      }
+      showCustomAlert('Save Error', msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -260,11 +255,18 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
         <View className="flex-1">
           <Text className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Date</Text>
           <TouchableOpacity 
-            onPress={() => Alert.alert('DatePicker', 'Opening calendar...')}
-            className="border border-gray-200 rounded-2xl px-4 py-3.5 flex-row justify-between items-center"
+            onPress={() => setShowDatePicker(true)}
+            activeOpacity={0.7}
+            className="border border-gray-200 bg-gray-50/60 rounded-2xl px-4 py-3.5 flex-row justify-between items-center"
           >
-            <Text className="text-gray-800 font-bold text-sm">June 25, 2026</Text>
-            <Text className="text-gray-400 text-xs">▼</Text>
+            <Text className="text-gray-900 font-bold text-sm">
+              {selectedDate.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+              })}
+            </Text>
+            <Text className="text-blue-500 font-bold text-xs">📅</Text>
           </TouchableOpacity>
         </View>
 
@@ -406,6 +408,13 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
           </Text>
         )}
       </TouchableOpacity>
+      {/* Date Picker Modal */}
+      <DatePickerModal
+        visible={showDatePicker}
+        selectedDate={selectedDate}
+        onSelectDate={(date) => setSelectedDate(date)}
+        onClose={() => setShowDatePicker(false)}
+      />
     </ScrollView>
   );
 };

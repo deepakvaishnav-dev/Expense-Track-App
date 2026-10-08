@@ -91,16 +91,10 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS Middleware Configurations
-origins = [
-    "http://localhost",
-    "http://localhost:3000",
-    "http://localhost:8081", # Default React Native dev server
-    "*" # Allowed for easy API connectivity in different mobile environments
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
+    allow_origin_regex=r"^https?://.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

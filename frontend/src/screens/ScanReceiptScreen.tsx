@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, ActivityIndicator, Image, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, Image, Dimensions } from 'react-native';
 import { api } from '../services/api';
 import * as ImagePicker from 'expo-image-picker';
+import { showCustomAlert } from '../store/alertStore';
 
 const { width } = Dimensions.get('window');
 
@@ -19,7 +20,7 @@ export const ScanReceiptScreen: React.FC<{ navigation: any }> = ({ navigation })
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Permission to access media library is required to upload receipts.');
+        showCustomAlert('Permission Denied', 'Permission to access media library is required to upload receipts.', 'warning');
         return;
       }
 
@@ -34,14 +35,15 @@ export const ScanReceiptScreen: React.FC<{ navigation: any }> = ({ navigation })
       }
     } catch (e: any) {
       console.warn(e);
-      Alert.alert('Error', 'Failed to open image library.');
+      showCustomAlert('Error', 'Failed to open image library.', 'error');
     }
   };
 
   const openCamera = async () => {
-    Alert.alert(
+    showCustomAlert(
       'Camera Access Required',
       'Would you like to open the camera to scan your receipt?',
+      'info',
       [
         {
           text: 'Cancel',
@@ -53,7 +55,7 @@ export const ScanReceiptScreen: React.FC<{ navigation: any }> = ({ navigation })
             try {
               const { status } = await ImagePicker.requestCameraPermissionsAsync();
               if (status !== 'granted') {
-                Alert.alert('Permission Denied', 'Permission to access camera is required to scan receipts.');
+                showCustomAlert('Permission Denied', 'Permission to access camera is required to scan receipts.', 'warning');
                 return;
               }
 
@@ -68,7 +70,7 @@ export const ScanReceiptScreen: React.FC<{ navigation: any }> = ({ navigation })
               }
             } catch (e: any) {
               console.warn(e);
-              Alert.alert('Error', 'Failed to open camera.');
+              showCustomAlert('Error', 'Failed to open camera.', 'error');
             }
           },
         },
@@ -78,7 +80,7 @@ export const ScanReceiptScreen: React.FC<{ navigation: any }> = ({ navigation })
 
   const uploadReceipt = async () => {
     if (!selectedImage) {
-      Alert.alert('Capture Required', 'Please snap or select a receipt image first.');
+      showCustomAlert('Capture Required', 'Please snap or select a receipt image first.', 'warning');
       return;
     }
 
@@ -110,9 +112,10 @@ export const ScanReceiptScreen: React.FC<{ navigation: any }> = ({ navigation })
       setProgressStep('Categorizing and updating account balances...');
       await new Promise<void>((resolve) => setTimeout(() => resolve(), 800));
 
-      Alert.alert(
+      showCustomAlert(
         'OCR Scan Completed',
         `AI successfully extracted:\nMerchant: ${transaction.merchant || 'Unknown'}\nAmount: ₹${transaction.amount}`,
+        'success',
         [
           {
             text: 'View Dashboard',
@@ -125,7 +128,7 @@ export const ScanReceiptScreen: React.FC<{ navigation: any }> = ({ navigation })
     } catch (e: any) {
       console.warn(e);
       const errorMsg = e.response?.data?.detail || e.message || 'Unknown error occurred.';
-      Alert.alert('Scan Failed', `Failed to read receipt data: ${errorMsg}. Please log manually.`);
+      showCustomAlert('Scan Failed', `Failed to read receipt data: ${errorMsg}. Please log manually.`, 'error');
     } finally {
       setUploading(false);
       setProgressStep('');
@@ -137,7 +140,7 @@ export const ScanReceiptScreen: React.FC<{ navigation: any }> = ({ navigation })
       {/* Top bar Actions */}
       <View className="flex-row justify-between items-center mt-6">
         <TouchableOpacity 
-          onPress={() => Alert.alert('Flash', 'Flash toggle switched.')}
+          onPress={() => showCustomAlert('Flash Mode', 'Flashlight toggle switched.', 'info')}
           className="flex-row items-center"
         >
           <Text className="text-white text-base font-bold">⚡ Flash</Text>

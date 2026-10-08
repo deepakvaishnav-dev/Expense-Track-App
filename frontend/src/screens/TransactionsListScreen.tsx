@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator,
 import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../services/api';
 import { Svg, Path } from 'react-native-svg';
+import { showCustomAlert } from '../store/alertStore';
 
 export const TransactionsListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
@@ -47,7 +48,7 @@ export const TransactionsListScreen: React.FC<{ navigation: any }> = ({ navigati
       setTransactions(res.data);
     } catch (e) {
       console.warn(e);
-      Alert.alert('Error', 'Failed to retrieve transactions list.');
+      showCustomAlert('Error', 'Failed to retrieve transactions list.', 'error');
     } finally {
       setLoading(false);
     }
@@ -71,11 +72,7 @@ export const TransactionsListScreen: React.FC<{ navigation: any }> = ({ navigati
       fetchData(false);
     } catch (e: any) {
       console.warn(e);
-      if (Platform.OS === 'web') {
-        (globalThis as any).alert('Failed to delete transaction.');
-      } else {
-        Alert.alert('Error', 'Failed to delete transaction.');
-      }
+      showCustomAlert('Error', 'Failed to delete transaction.', 'error');
     } finally {
       setTransactionToDeleteId(null);
       setLoading(false);

@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { Svg, Circle } from 'react-native-svg';
+import { showCustomAlert } from '../store/alertStore';
 
 export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -26,7 +27,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       setData(response.data);
     } catch (e: any) {
       console.warn(e);
-      Alert.alert('Data Error', 'Failed to retrieve latest financial records.');
+      showCustomAlert('Data Error', 'Failed to retrieve latest financial records.', 'error');
     } finally {
       setLoading(false);
     }
