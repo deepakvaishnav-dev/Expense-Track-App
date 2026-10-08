@@ -11,10 +11,10 @@ import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { TransactionsListScreen } from '../screens/TransactionsListScreen';
 import { AIAssistantChatScreen } from '../screens/AIAssistantChatScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
-import { SmsTrackerScreen } from '../screens/SmsTrackerScreen';
+import { KhataBookScreen } from '../screens/KhataBookScreen';
 import { useAuthStore } from '../store/authStore';
 import { showCustomAlert } from '../store/alertStore';
-import { View, Text, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -59,14 +59,14 @@ const TabNavigator = () => {
           tabPress: (e) => {
             e.preventDefault();
             showCustomAlert(
-              'Add Transaction',
-              'Choose how you want to log your transaction:',
+              'Add Transaction or Khata',
+              'Choose what you want to record:',
               'info',
               [
                 { text: 'Cancel', style: 'cancel' },
-                { text: 'Manual Entry', onPress: () => navigation.navigate('AddTransaction') },
-                { text: 'Scan Receipt', onPress: () => navigation.navigate('ScanReceipt') },
-                { text: '📱 AI SMS Auto-Track', onPress: () => navigation.navigate('SmsTracker') },
+                { text: '💸 Expense / Income', onPress: () => navigation.navigate('AddTransaction') },
+                { text: '🧾 Scan Receipt with AI', onPress: () => navigation.navigate('ScanReceipt') },
+                { text: '👥 KhataBook (Udhaar P2P)', onPress: () => navigation.navigate('KhataBook') },
               ]
             );
           },
@@ -98,11 +98,11 @@ const TabNavigator = () => {
         }}
       />
       <Tab.Screen 
-        name="AIChat" 
-        component={AIAssistantChatScreen} 
+        name="KhataTab" 
+        component={KhataBookScreen} 
         options={{
-          tabBarLabel: 'AI Chat',
-          tabBarIcon: ({ color }: { color: string }) => <Text style={{ color, fontSize: 22 }}>💬</Text>,
+          tabBarLabel: 'KhataBook',
+          tabBarIcon: ({ color }: { color: string }) => <Text style={{ color, fontSize: 22 }}>📒</Text>,
         }}
       />
       <Tab.Screen 
@@ -116,7 +116,6 @@ const TabNavigator = () => {
     </Tab.Navigator>
   );
 };
-
 
 export const AppNavigator = () => {
   const isAuthenticated = useAuthStore((state: any) => state.isAuthenticated);
@@ -132,9 +131,10 @@ export const AppNavigator = () => {
       ) : (
         <>
           <Stack.Screen name="Main" component={TabNavigator} />
+          <Stack.Screen name="KhataBook" component={KhataBookScreen} />
           <Stack.Screen name="AddTransaction" component={AddTransactionScreen} />
           <Stack.Screen name="ScanReceipt" component={ScanReceiptScreen} />
-          <Stack.Screen name="SmsTracker" component={SmsTrackerScreen} />
+          <Stack.Screen name="AIChat" component={AIAssistantChatScreen} />
           <Stack.Screen name="Notifications" component={NotificationsScreen} />
         </>
       )}

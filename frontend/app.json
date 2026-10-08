@@ -32,7 +32,6 @@
       ]
     },
     "plugins": [
-      "./plugins/withNotificationListener.js",
       [
         "expo-image-picker",
         {

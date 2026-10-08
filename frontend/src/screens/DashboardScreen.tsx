@@ -1,15 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import { Svg, Circle } from 'react-native-svg';
 import { showCustomAlert } from '../store/alertStore';
+import { khataService, KhataSummary } from '../services/khataService';
 
 export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [activeInsight, setActiveInsight] = useState(0);
+  const [khataSummary, setKhataSummary] = useState<KhataSummary>({
+    totalReceivable: 0,
+    totalPayable: 0,
+    netBalance: 0,
+    totalPersons: 0,
+  });
   const user = useAuthStore((state) => state.user);
 
   useFocusEffect(
@@ -23,11 +30,19 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       setLoading(true);
     }
     try {
-      const response = await api.get('/analytics/summary');
-      setData(response.data);
+      const [res, kSum] = await Promise.all([
+        api.get('/analytics/summary'),
+        khataService.getSummary(),
+      ]);
+      setData(res.data);
+      setKhataSummary(kSum);
     } catch (e: any) {
       console.warn(e);
-      showCustomAlert('Data Error', 'Failed to retrieve latest financial records.', 'error');
+      // Still load khata summary locally even if network has a glitch
+      try {
+        const kSum = await khataService.getSummary();
+        setKhataSummary(kSum);
+      } catch {}
     } finally {
       setLoading(false);
     }
@@ -147,7 +162,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     <ScrollView className="flex-1 bg-gray-50" showsVerticalScrollIndicator={false}>
       {/* Curved Blue Header container */}
       <View className="bg-blue-600 rounded-b-[40px] pt-12 pb-16 px-6 relative shadow-md">
-        {/* Welcome and Notification */}
+        {/* Welcome and Actions */}
         <View className="flex-row justify-between items-center mb-6">
           <View className="flex-row items-center">
             <View className="w-10 h-10 bg-white/20 rounded-full items-center justify-center mr-3">
@@ -155,27 +170,36 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             </View>
             <View>
               <Text className="text-blue-100 text-xs font-semibold">Welcome,</Text>
-              <Text className="text-white text-lg font-black">{user?.full_name || 'Alex'}</Text>
+              <Text className="text-white text-lg font-black">{user?.full_name || 'Deepak'}</Text>
             </View>
           </View>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Notifications')}
-            className="w-10 h-10 bg-white/10 rounded-full items-center justify-center"
-          >
-            <Text className="text-lg">🔔</Text>
-          </TouchableOpacity>
+          
+          <View className="flex-row items-center space-x-2">
+            <TouchableOpacity
+              onPress={() => navigation.navigate('AIChat')}
+              className="w-10 h-10 bg-white/20 rounded-full items-center justify-center mr-2"
+            >
+              <Text className="text-lg">🤖</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Notifications')}
+              className="w-10 h-10 bg-white/10 rounded-full items-center justify-center"
+            >
+              <Text className="text-lg">🔔</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Side-by-side Metric Cards */}
         <View className="flex-row justify-between mt-2">
           {/* Today's Spend */}
-          <View className="w-[48%] bg-blue-500 rounded-3xl p-4 shadow-sm">
+          <View className="w-[48%] bg-blue-500 rounded-3xl p-4 shadow-sm border border-blue-400">
             <Text className="text-blue-100 text-[10px] font-bold tracking-wider mb-1">TODAY'S SPEND</Text>
             <Text className="text-white text-2xl font-black">₹{today_spending.toLocaleString()}</Text>
           </View>
 
           {/* Monthly Total */}
-          <View className="w-[48%] bg-gray-900 rounded-3xl p-4 shadow-sm">
+          <View className="w-[48%] bg-gray-900 rounded-3xl p-4 shadow-sm border border-gray-800">
             <Text className="text-gray-400 text-[10px] font-bold tracking-wider mb-1">MONTHLY TOTAL</Text>
             <Text className="text-white text-2xl font-black">₹{monthly_spending.toLocaleString()}</Text>
           </View>
@@ -183,30 +207,48 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
       </View>
 
       {/* Main Content Area */}
-      <View className="px-6 -mt-6">
-        
-        {/* AI SMS & UPI Auto-Tracker Banner */}
+      <View className="px-6 -mt-8">
+        {/* KhataBook (P2P Udhaar Ledger) Live Card */}
         <TouchableOpacity
-          onPress={() => navigation.navigate('SmsTracker')}
+          onPress={() => navigation.navigate('KhataBook')}
           activeOpacity={0.88}
-          className="bg-white rounded-3xl p-4.5 shadow-sm border border-blue-100 mb-5 flex-row items-center justify-between"
+          className="bg-white rounded-3xl p-5 shadow-sm border border-blue-100 mb-5"
         >
-          <View className="flex-row items-center flex-1 mr-3">
-            <View className="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-150 items-center justify-center mr-3">
-              <Text className="text-xl">🤖</Text>
-            </View>
-            <View className="flex-1">
-              <View className="flex-row items-center mb-0.5">
-                <Text className="text-gray-900 text-sm font-black mr-2">AI UPI & SMS Tracker</Text>
-                <View className="w-2 h-2 rounded-full bg-emerald-500" />
+          <View className="flex-row items-center justify-between mb-3">
+            <View className="flex-row items-center">
+              <View className="w-11 h-11 rounded-2xl bg-amber-50 border border-amber-200 items-center justify-center mr-3">
+                <Text className="text-2xl">📒</Text>
               </View>
-              <Text className="text-gray-500 text-[11px] font-medium" numberOfLines={1}>
-                Auto-logs UPI transfers, food stores & kirana SMS
-              </Text>
+              <View>
+                <View className="flex-row items-center">
+                  <Text className="text-gray-900 text-sm font-black mr-2">KhataBook (P2P Udhaar)</Text>
+                  <View className="w-2 h-2 rounded-full bg-emerald-500" />
+                </View>
+                <Text className="text-gray-400 text-[10px] font-semibold">
+                  Track money lent & borrowed with friends
+                </Text>
+              </View>
+            </View>
+            <View className="px-3 py-1 bg-blue-50 rounded-full border border-blue-200">
+              <Text className="text-blue-700 text-[10px] font-extrabold">Open Khata ➔</Text>
             </View>
           </View>
-          <View className="w-7 h-7 rounded-full bg-blue-50 items-center justify-center">
-            <Text className="text-blue-600 font-extrabold text-xs">➔</Text>
+
+          {/* Khata Live Totals Bar */}
+          <View className="flex-row justify-between bg-gray-50 rounded-2xl p-3.5 border border-gray-150">
+            <View className="flex-1 mr-2">
+              <Text className="text-emerald-700 text-[9px] font-black tracking-wider">🟢 KUL LENA HAI (GET)</Text>
+              <Text className="text-emerald-900 text-lg font-black mt-0.5">
+                ₹{khataSummary.totalReceivable.toLocaleString()}
+              </Text>
+            </View>
+            <View className="w-px bg-gray-200" />
+            <View className="flex-1 pl-3">
+              <Text className="text-rose-700 text-[9px] font-black tracking-wider">🔴 KUL DENA HAI (GIVE)</Text>
+              <Text className="text-rose-900 text-lg font-black mt-0.5">
+                ₹{khataSummary.totalPayable.toLocaleString()}
+              </Text>
+            </View>
           </View>
         </TouchableOpacity>
 
@@ -249,8 +291,6 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           <View className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-6">
             <Text className="text-gray-800 text-base font-black mb-4">Budget Progress</Text>
             {top_categories.map((cat: any, idx: number) => {
-              // Mock budget target per category or calculate pct
-              // Set a pseudo budget limit: e.g. 5000 per top category
               const target = 5000.0;
               const pct = Math.min(100, (cat.amount / target) * 100);
               return (
@@ -259,7 +299,6 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                     <Text className="text-gray-700 font-bold text-sm">{cat.name}</Text>
                     <Text className="text-gray-500 text-xs font-extrabold">{pct.toFixed(0)}%</Text>
                   </View>
-                  {/* Progress Line Bar */}
                   <View className="h-2 bg-gray-100 rounded-full overflow-hidden">
                     <View
                       style={{ width: `${pct}%`, backgroundColor: cat.color || '#3b82f6' }}
@@ -316,7 +355,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
               <Text className="text-xs">✨</Text>
             </View>
             <View className="flex-1">
-              <Text className="text-blue-900 text-xs font-black tracking-wider mb-1">AI INSIGHT</Text>
+              <Text className="text-blue-900 text-xs font-black tracking-wider mb-1">AI FINANCIAL INSIGHT</Text>
               <Text className="text-blue-800 text-sm font-semibold leading-5">
                 "{ai_insights[activeInsight]}"
               </Text>
