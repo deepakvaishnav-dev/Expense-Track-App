@@ -192,8 +192,8 @@ export const SmsTrackerScreen: React.FC<{ navigation: any }> = ({ navigation }) 
 
           <Text className="text-gray-500 text-xs leading-4 mb-4">
             {autoTrackingEnabled
-              ? 'Incoming UPI alerts (P2P friends, food stores, shopkeepers, bills) will be analyzed automatically by Gemini AI.'
-              : 'Grant SMS permissions so Gemini can intercept your transaction text alerts and log expenses automatically.'}
+              ? 'Incoming UPI alerts (P2P friends, food stores, shopkeepers, bills) will be analyzed automatically by AI.'
+              : 'Grant SMS permissions so AI can intercept your transaction text alerts and log expenses automatically.'}
           </Text>
 
           {/* Privacy Guarantee Box */}

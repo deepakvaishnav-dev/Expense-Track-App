@@ -100,7 +100,7 @@ export const ScanReceiptScreen: React.FC<{ navigation: any }> = ({ navigation })
         type,
       } as any);
 
-      setProgressStep('Gemini AI OCR extracting details...');
+      setProgressStep('AI OCR extracting details...');
       const response = await api.post('/ai/scan-receipt', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',

@@ -86,7 +86,7 @@ class AIService:
                 reference_number=str(result_json.get("reference_number") or f"UPI{int(datetime.now(timezone.utc).timestamp())}")
             )
         except Exception as e:
-            print(f"Gemini API Error: {e}")
+            print(f"AI API Error: {e}")
             return self._mock_classify_text(text)
 
     def scan_receipt(self, image_bytes: bytes, mime_type: str) -> ReceiptOCRResponse:
@@ -126,7 +126,7 @@ class AIService:
             result_json = json.loads(response.text)
             return ReceiptOCRResponse(**result_json)
         except Exception as e:
-            print(f"Gemini OCR Error: {e}")
+            print(f"AI OCR Error: {e}")
             return self._mock_scan_receipt()
 
     def _is_otp(self, text: str) -> bool:
@@ -329,7 +329,7 @@ class AIService:
                 insights_cache.set(user_id, result)
                 return result
         except Exception as e:
-            print(f"Failed to generate Gemini AI insights: {e}")
+            print(f"Failed to generate AI insights: {e}")
 
         fallback = self.generate_heuristic_insights(name, monthly_spending, category_breakdown)
         insights_cache.set(user_id, fallback)

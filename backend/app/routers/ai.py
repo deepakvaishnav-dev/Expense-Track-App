@@ -177,7 +177,7 @@ async def ai_chat(
 ):
     """
     Accepts user text message, gathers context about their recent transactions,
-    and asks Gemini to generate an answer about their spending.
+    and asks AI to generate an answer about their spending.
     """
     # Fetch last 150 transactions for context
     txn_res = await db.execute(
@@ -224,6 +224,6 @@ async def ai_chat(
         response = model.generate_content(prompt)
         return AIChatResponse(response=response.text.strip())
     except Exception as e:
-        print(f"Gemini Chat Error: {e}")
+        print(f"AI Chat Error: {e}")
         return AIChatResponse(response="I encountered an issue analyzing your transactions. Please try again.")
 

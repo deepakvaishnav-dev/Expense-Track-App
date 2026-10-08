@@ -17,7 +17,7 @@ export const AIAssistantChatScreen: React.FC<{ navigation: any }> = ({ navigatio
     {
       id: '1',
       sender: 'ai',
-      text: "Hello! I am your Gemini AI financial companion. Ask me anything about your spending, trends, or attach a receipt image for instant analysis!"
+      text: "Hello! I am your AI financial companion. Ask me anything about your spending, trends, or attach a receipt image for instant analysis!"
     }
   ]);
   const [inputText, setInputText] = useState('');
@@ -139,7 +139,7 @@ export const AIAssistantChatScreen: React.FC<{ navigation: any }> = ({ navigatio
         const method = txn.payment_method || 'UPI';
         const type = txn.type || 'Expense';
 
-        const aiResponseText = `I analyzed your receipt with Gemini OCR! 🧾\n\n` +
+        const aiResponseText = `I analyzed your receipt with AI OCR! 🧾\n\n` +
           `• Merchant: ${merchant}\n` +
           `• Amount: ${amount}\n` +
           `• Payment: ${method}\n` +
@@ -219,7 +219,7 @@ export const AIAssistantChatScreen: React.FC<{ navigation: any }> = ({ navigatio
 
                 <View className="max-w-[80%]">
                   {!isUser && (
-                    <Text className="text-[10px] text-gray-400 font-bold mb-1 ml-1">AI Assistant Gemini</Text>
+                    <Text className="text-[10px] text-gray-400 font-bold mb-1 ml-1">AI Assistant</Text>
                   )}
                   <View
                     className={`p-4 rounded-3xl ${
@@ -271,7 +271,7 @@ export const AIAssistantChatScreen: React.FC<{ navigation: any }> = ({ navigatio
               />
               <View className="flex-1">
                 <Text className="text-xs font-bold text-blue-900">Receipt image attached</Text>
-                <Text className="text-[11px] text-blue-600 font-medium">Ready for Gemini AI scan</Text>
+                <Text className="text-[11px] text-blue-600 font-medium">Ready for AI scan</Text>
               </View>
               <TouchableOpacity
                 onPress={() => setAttachedImage(null)}

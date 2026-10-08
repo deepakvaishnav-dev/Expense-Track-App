@@ -21,7 +21,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }
     },
     {
       title: 'AI Categorization',
-      description: 'Powered by Gemini. Transactions are parsed and intelligently classified into categories like Food, Shopping, Bills, or Fuel.',
+      description: 'Intelligent and automated. Transactions are parsed and accurately classified into categories like Food, Shopping, Bills, or Fuel.',
       icon: '🧠',
     },
     {
