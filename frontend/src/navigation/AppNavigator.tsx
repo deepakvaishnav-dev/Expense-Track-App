@@ -16,6 +16,7 @@ import { useAuthStore } from '../store/authStore';
 import { showCustomAlert } from '../store/alertStore';
 import { View, Text, TouchableOpacity, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { HomeIcon, HistoryIcon, KhataIcon, ProfileIcon, PlusIcon } from '../components/navigation/NavIcons';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -23,7 +24,9 @@ const Tab = createBottomTabNavigator();
 // Bottom Tab Navigation for Logged-In Context
 const TabNavigator = () => {
   const insets = useSafeAreaInsets();
-  const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 6 : 8);
+  // Ensure enough bottom clearance on both physical Android gesture bars and 3-button nav
+  const bottomInset = insets.bottom > 0 ? insets.bottom : (Platform.OS === 'android' ? 10 : 8);
+  const barHeight = Platform.OS === 'ios' ? 60 + bottomInset : 66 + bottomInset;
 
   return (
     <Tab.Navigator
@@ -31,14 +34,15 @@ const TabNavigator = () => {
         headerShown: false,
         tabBarStyle: {
           backgroundColor: '#ffffff',
+          borderTopWidth: 1,
           borderTopColor: '#f1f5f9',
           paddingBottom: bottomInset,
-          paddingTop: 6,
-          height: 56 + bottomInset,
-          elevation: 10,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.06,
+          paddingTop: 8,
+          height: barHeight,
+          elevation: 12,
+          shadowColor: '#000000',
+          shadowOffset: { width: 0, height: -3 },
+          shadowOpacity: 0.08,
           shadowRadius: 10,
         },
         tabBarActiveTintColor: '#2563eb',
@@ -46,7 +50,12 @@ const TabNavigator = () => {
         tabBarLabelStyle: {
           fontWeight: '700',
           fontSize: 11,
-          marginBottom: 2,
+          marginTop: 4,
+        },
+        tabBarItemStyle: {
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingVertical: 2,
         },
       }}
     >
@@ -55,7 +64,7 @@ const TabNavigator = () => {
         component={DashboardScreen} 
         options={{
           tabBarLabel: 'Home',
-          tabBarIcon: ({ color }: { color: string }) => <Text style={{ color, fontSize: 22 }}>🏠</Text>,
+          tabBarIcon: ({ color, focused }) => <HomeIcon color={color} focused={focused} />,
         }}
       />
       <Tab.Screen 
@@ -63,7 +72,7 @@ const TabNavigator = () => {
         component={TransactionsListScreen} 
         options={{
           tabBarLabel: 'History',
-          tabBarIcon: ({ color }: { color: string }) => <Text style={{ color, fontSize: 22 }}>📅</Text>,
+          tabBarIcon: ({ color, focused }) => <HistoryIcon color={color} focused={focused} />,
         }}
       />
       <Tab.Screen 
@@ -90,23 +99,24 @@ const TabNavigator = () => {
           tabBarButton: (props: any) => (
             <TouchableOpacity
               onPress={props.onPress}
+              activeOpacity={0.85}
               style={{
-                top: -12,
+                top: -18,
                 justifyContent: 'center',
                 alignItems: 'center',
-                width: 52,
-                height: 52,
-                borderRadius: 26,
-                backgroundColor: '#3b82f6',
-                shadowColor: '#3b82f6',
+                width: 54,
+                height: 54,
+                borderRadius: 27,
+                backgroundColor: '#2563eb',
+                shadowColor: '#2563eb',
                 shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 5,
-                elevation: 4,
-                marginHorizontal: 12,
+                shadowOpacity: 0.35,
+                shadowRadius: 8,
+                elevation: 6,
+                marginHorizontal: 8,
               }}
             >
-              <Text style={{ color: 'white', fontSize: 30, fontWeight: '900', marginTop: -3 }}>+</Text>
+              <PlusIcon color="#ffffff" />
             </TouchableOpacity>
           ),
         }}
@@ -115,8 +125,8 @@ const TabNavigator = () => {
         name="KhataTab" 
         component={KhataBookScreen} 
         options={{
-          tabBarLabel: 'Accounts Book',
-          tabBarIcon: ({ color }: { color: string }) => <Text style={{ color, fontSize: 22 }}>📒</Text>,
+          tabBarLabel: 'Khata',
+          tabBarIcon: ({ color, focused }) => <KhataIcon color={color} focused={focused} />,
         }}
       />
       <Tab.Screen 
@@ -124,7 +134,7 @@ const TabNavigator = () => {
         component={ProfileScreen} 
         options={{
           tabBarLabel: 'Profile',
-          tabBarIcon: ({ color }: { color: string }) => <Text style={{ color, fontSize: 22 }}>👤</Text>,
+          tabBarIcon: ({ color, focused }) => <ProfileIcon color={color} focused={focused} />,
         }}
       />
     </Tab.Navigator>
