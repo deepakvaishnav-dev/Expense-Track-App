@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useForm, Controller } from 'react-hook-form';
 import { api } from '../services/api';
 import { DatePickerModal } from '../components/common';
 import { showCustomAlert } from '../store/alertStore';
 
 export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = ({ route, navigation }) => {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -30,6 +32,7 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
     }
   });
 
+  const transactionType = watch('type');
   const selectedCategory = watch('categoryId');
   const selectedPaymentMethod = watch('paymentMethod');
 
@@ -166,28 +169,70 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
   };
 
   return (
-    <ScrollView className="flex-1 bg-white p-6" showsVerticalScrollIndicator={false}>
+    <ScrollView 
+      className="flex-1 bg-white px-6" 
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 40, 60), paddingTop: Math.max(insets.top, 16) }}
+    >
       {/* Header */}
-      <View className="flex-row flex-wrap items-center justify-between gap-3 mt-6 mb-8">
+      <View className="flex-row items-center justify-between gap-3 mb-6">
         <View className="flex-row items-center">
-          <TouchableOpacity onPress={() => navigation.pop()} className="mr-3">
-            <Text className="text-gray-900 text-2xl font-bold">←</Text>
+          <TouchableOpacity onPress={() => navigation.pop()} className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center mr-3">
+            <Text className="text-gray-900 text-lg font-bold">←</Text>
           </TouchableOpacity>
           <Text className="text-gray-900 text-xl font-black">
-            {transactionToEdit ? 'Edit Transaction' : 'Manual Entry Form'}
+            {transactionToEdit ? 'Edit Entry' : 'New Transaction'}
           </Text>
         </View>
         <TouchableOpacity 
           onPress={() => navigation.navigate('ScanReceipt')}
-          className="bg-blue-50 px-3.5 py-1.5 rounded-full border border-blue-100 flex-row items-center"
+          className="bg-blue-50 px-3.5 py-2 rounded-full border border-blue-100 flex-row items-center"
         >
           <Text className="text-blue-600 font-extrabold text-xs">📷 Scan Receipt</Text>
         </TouchableOpacity>
       </View>
 
+      {/* Segmented Type Toggle (Expense vs Income) */}
+      <Controller
+        control={control}
+        name="type"
+        render={({ field: { onChange, value } }) => (
+          <View className="flex-row bg-gray-100 p-1 rounded-2xl mb-6">
+            <TouchableOpacity
+              onPress={() => onChange('Expense')}
+              activeOpacity={0.8}
+              className={`flex-1 py-3 rounded-xl flex-row items-center justify-center ${
+                value === 'Expense' ? 'bg-rose-500 shadow-sm' : 'bg-transparent'
+              }`}
+            >
+              <Text className="mr-1.5 text-base">💸</Text>
+              <Text className={`text-sm font-black tracking-wide ${value === 'Expense' ? 'text-white' : 'text-gray-600'}`}>
+                Expense
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => onChange('Income')}
+              activeOpacity={0.8}
+              className={`flex-1 py-3 rounded-xl flex-row items-center justify-center ${
+                value === 'Income' ? 'bg-emerald-600 shadow-sm' : 'bg-transparent'
+              }`}
+            >
+              <Text className="mr-1.5 text-base">💰</Text>
+              <Text className={`text-sm font-black tracking-wide ${value === 'Income' ? 'text-white' : 'text-gray-600'}`}>
+                Income
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      />
+
       {/* Large Amount Field */}
       <View className="mb-6">
-        <Text className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">Large amount</Text>
+        <Text className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">
+          {transactionType === 'Income' ? 'Income Amount' : 'Expense Amount'}
+        </Text>
         <Controller
           control={control}
           name="amount"
@@ -196,14 +241,16 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
             pattern: { value: /^\d+(\.\d{1,2})?$/, message: 'Invalid decimal amount' }
           }}
           render={({ field: { onChange, value } }) => (
-            <View className="flex-row items-center border-b border-gray-200 pb-2">
-              <Text className="text-4xl font-black text-gray-900 mr-2">₹</Text>
+            <View className="flex-row items-center border-b-2 border-gray-150 pb-2">
+              <Text className={`text-4xl font-black mr-2 ${transactionType === 'Income' ? 'text-emerald-600' : 'text-gray-900'}`}>
+                ₹
+              </Text>
               <TextInput
                 value={value}
                 onChangeText={onChange}
                 placeholder="0.00"
                 placeholderTextColor="#cbd5e1"
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 style={{ outlineStyle: 'none' } as any}
                 className="text-4xl font-black text-gray-900 flex-1 p-0"
               />
@@ -398,13 +445,13 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
       <TouchableOpacity
         onPress={handleSubmit(onSubmit)}
         disabled={loading}
-        className="bg-blue-600 py-4.5 rounded-3xl items-center justify-center shadow-md mb-12"
+        className={`${transactionType === 'Income' ? 'bg-emerald-600' : 'bg-blue-600'} py-4 rounded-2xl items-center justify-center shadow-md mb-6`}
       >
         {loading ? (
           <ActivityIndicator color="#ffffff" size="small" />
         ) : (
           <Text className="text-white font-extrabold text-base tracking-wider">
-            {transactionToEdit ? 'UPDATE TRANSACTION' : 'SAVE TRANSACTION'}
+            {transactionToEdit ? 'UPDATE TRANSACTION' : transactionType === 'Income' ? 'SAVE INCOME' : 'SAVE EXPENSE'}
           </Text>
         )}
       </TouchableOpacity>

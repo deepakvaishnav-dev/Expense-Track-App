@@ -12,6 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   khataService,
   KhataPerson,
@@ -21,7 +22,10 @@ import {
 } from '../services/khataService';
 import { showCustomAlert } from '../store/alertStore';
 
-export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
+  const isTab = route?.name === 'KhataTab';
+  const bottomBarOffset = isTab ? insets.bottom + 72 : Math.max(insets.bottom + 16, 20);
   const [persons, setPersons] = useState<KhataPerson[]>([]);
   const [summary, setSummary] = useState<KhataSummary>({
     totalReceivable: 0,
@@ -524,13 +528,13 @@ export const KhataBookScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 </TouchableOpacity>
               );
             })}
-            <View className="h-28" />
+            <View style={{ height: isTab ? 110 : 80 }} />
           </ScrollView>
         )}
       </View>
 
       {/* Prominent Bottom Action Bar with Plus (+) Icon */}
-      <View className="absolute bottom-5 left-5 right-5 flex-row items-center justify-between">
+      <View style={{ bottom: bottomBarOffset }} className="absolute left-5 right-5 flex-row items-center justify-between">
         {/* + Lent Button */}
         <TouchableOpacity
           onPress={() => handleOpenAdd('GAVE')}

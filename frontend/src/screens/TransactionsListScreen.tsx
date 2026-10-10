@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, Alert, Platform, Modal } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../services/api';
 import { Svg, Path } from 'react-native-svg';
 import { showCustomAlert } from '../store/alertStore';
 
 export const TransactionsListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -201,7 +203,9 @@ export const TransactionsListScreen: React.FC<{ navigation: any }> = ({ navigati
         <View className="flex-row items-center ml-2">
           {/* Amount & Status Badge */}
           <View className="items-end mr-3">
-            <Text className="text-gray-900 font-extrabold text-base">₹{amountFloat.toLocaleString()}</Text>
+            <Text className={`font-extrabold text-base ${(t.type || 'expense').toLowerCase() === 'expense' ? 'text-gray-900' : 'text-emerald-600'}`}>
+              {(t.type || 'expense').toLowerCase() === 'expense' ? '-' : '+'}₹{amountFloat.toLocaleString()}
+            </Text>
             <Text className={`text-[10px] font-bold mt-1 px-2 py-0.5 rounded-full ${
               isAuto ? 'bg-blue-50 text-blue-500' : 'bg-gray-100 text-gray-500'
             }`}>
@@ -230,9 +234,9 @@ export const TransactionsListScreen: React.FC<{ navigation: any }> = ({ navigati
   };
 
   return (
-    <View className="flex-1 bg-white p-6">
+    <View className="flex-1 bg-white px-6" style={{ paddingTop: Math.max(insets.top, 16) }}>
       {/* Header */}
-      <View className="flex-row items-center justify-between mt-6 mb-6">
+      <View className="flex-row items-center justify-between mb-5">
         <Text className="text-gray-900 text-2xl font-black">Transactions List</Text>
         <TouchableOpacity
           onPress={() => navigation.navigate('Notifications')}
@@ -353,7 +357,7 @@ export const TransactionsListScreen: React.FC<{ navigation: any }> = ({ navigati
           <Text className="text-gray-400 text-sm text-center mt-1">Try adjusting search query or filters</Text>
         </View>
       ) : (
-        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 110 }}>
           {/* Today Group */}
           {grouped.Today.length > 0 && (
             <View className="mb-6">
@@ -381,8 +385,8 @@ export const TransactionsListScreen: React.FC<{ navigation: any }> = ({ navigati
       )}
 
       {/* Custom Delete Confirmation Modal */}
-      {deleteModalVisible && (
-        <View className="absolute inset-0 bg-black/60 justify-center items-center p-6 z-50">
+      <Modal visible={deleteModalVisible} transparent animationType="fade" onRequestClose={() => setDeleteModalVisible(false)}>
+        <View className="flex-1 bg-black/60 justify-center items-center p-6">
           <View className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-gray-100">
             {/* Warning Icon */}
             <View className="items-center mb-4">
@@ -416,7 +420,7 @@ export const TransactionsListScreen: React.FC<{ navigation: any }> = ({ navigati
             </View>
           </View>
         </View>
-      )}
+      </Modal>
     </View>
   );
 };

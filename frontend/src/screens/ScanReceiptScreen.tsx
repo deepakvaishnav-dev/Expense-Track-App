@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, Image, Dimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../services/api';
 import * as ImagePicker from 'expo-image-picker';
 import { showCustomAlert } from '../store/alertStore';
@@ -7,14 +8,10 @@ import { showCustomAlert } from '../store/alertStore';
 const { width } = Dimensions.get('window');
 
 export const ScanReceiptScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [uploading, setUploading] = useState(false);
   const [progressStep, setProgressStep] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-
-  // Trigger camera access prompt when entering the scanning screen
-  useEffect(() => {
-    openCamera();
-  }, []);
 
   const openGallery = async () => {
     try {
@@ -136,21 +133,29 @@ export const ScanReceiptScreen: React.FC<{ navigation: any }> = ({ navigation })
   };
 
   return (
-    <View className="flex-1 bg-black justify-between p-6">
-      {/* Top bar Actions */}
-      <View className="flex-row justify-between items-center mt-6">
+    <View 
+      className="flex-1 bg-neutral-950 justify-between px-6"
+      style={{
+        paddingTop: Math.max(insets.top + 8, 24),
+        paddingBottom: Math.max(insets.bottom + 16, 24),
+      }}
+    >
+      {/* Top bar Actions with Back Button */}
+      <View className="flex-row justify-between items-center mb-4">
         <TouchableOpacity 
-          onPress={() => showCustomAlert('Flash Mode', 'Flashlight toggle switched.', 'info')}
-          className="flex-row items-center"
+          onPress={() => navigation.pop()}
+          className="w-10 h-10 rounded-full bg-neutral-800 items-center justify-center"
         >
-          <Text className="text-white text-base font-bold">⚡ Flash</Text>
+          <Text className="text-white text-lg font-bold">←</Text>
         </TouchableOpacity>
+
+        <Text className="text-white font-black text-lg">Scan Receipt</Text>
 
         <TouchableOpacity 
           onPress={openGallery}
-          className="flex-row items-center"
+          className="bg-neutral-800 px-3.5 py-2 rounded-full flex-row items-center"
         >
-          <Text className="text-white text-base font-bold">🖼️ Gallery</Text>
+          <Text className="text-white text-xs font-bold">🖼️ Gallery</Text>
         </TouchableOpacity>
       </View>
 

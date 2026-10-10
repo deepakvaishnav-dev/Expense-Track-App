@@ -20,7 +20,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
         <NavigationContainer>
-          <StatusBar barStyle="light-content" backgroundColor="#0b0f19" />
+          <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
           <AppNavigator />
           <CustomAlertModal />
         </NavigationContainer>

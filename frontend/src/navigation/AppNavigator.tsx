@@ -14,26 +14,40 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { KhataBookScreen } from '../screens/KhataBookScreen';
 import { useAuthStore } from '../store/authStore';
 import { showCustomAlert } from '../store/alertStore';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 // Bottom Tab Navigation for Logged-In Context
 const TabNavigator = () => {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'android' ? 6 : 8);
+
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
           backgroundColor: '#ffffff',
-          borderTopColor: '#f3f4f6',
-          paddingBottom: 8,
-          paddingTop: 8,
-          height: 65,
+          borderTopColor: '#f1f5f9',
+          paddingBottom: bottomInset,
+          paddingTop: 6,
+          height: 56 + bottomInset,
+          elevation: 10,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.06,
+          shadowRadius: 10,
         },
-        tabBarActiveTintColor: '#3b82f6',
-        tabBarInactiveTintColor: '#9ca3af',
+        tabBarActiveTintColor: '#2563eb',
+        tabBarInactiveTintColor: '#94a3b8',
+        tabBarLabelStyle: {
+          fontWeight: '700',
+          fontSize: 11,
+          marginBottom: 2,
+        },
       }}
     >
       <Tab.Screen 

@@ -376,7 +376,11 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   const DAYS_LABEL = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
   return (
-    <ScrollView className="flex-1 bg-gray-50" showsVerticalScrollIndicator={false}>
+    <ScrollView 
+      className="flex-1 bg-gray-50" 
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 110 }}
+    >
       {/* Hidden file input for web browser */}
       {Platform.OS === 'web' && (
         <input
@@ -605,7 +609,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         <TouchableOpacity
           onPress={confirmLogout}
           activeOpacity={0.8}
-          className="bg-red-500 py-4.5 rounded-3xl items-center justify-center shadow-md mb-12 flex-row gap-2 border border-red-600"
+          className="bg-red-500 py-4 rounded-3xl items-center justify-center shadow-md mb-8 flex-row gap-2 border border-red-600"
         >
           <Text className="text-white text-base">🚪</Text>
           <Text className="text-white font-black text-base tracking-wider">

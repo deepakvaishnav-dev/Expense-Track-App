@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, PermissionsAndroid, Platform, Dimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { NativeModules } from 'react-native';
 import { showCustomAlert } from '../store/alertStore';
@@ -11,6 +12,7 @@ interface OnboardingScreenProps {
 }
 
 export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [currentSlide, setCurrentSlide] = useState(0);
 
   const slides = [
@@ -111,36 +113,45 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }
   const slide = slides[currentSlide];
 
   return (
-    <View className="flex-1 bg-dark-bg justify-between p-8">
+    <View 
+      className="flex-1 bg-gray-50 justify-between px-8"
+      style={{
+        paddingTop: Math.max(insets.top + 16, 36),
+        paddingBottom: Math.max(insets.bottom + 24, 36),
+      }}
+    >
       {/* Skip Button */}
-      <View className="flex-row justify-end mt-4">
-        <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-          <Text className="text-gray-400 font-semibold text-base">Skip</Text>
+      <View className="flex-row justify-end">
+        <TouchableOpacity 
+          onPress={() => navigation.navigate('Login')}
+          className="bg-white/80 px-4 py-1.5 rounded-full border border-gray-200 shadow-2xs"
+        >
+          <Text className="text-gray-600 font-bold text-xs">Skip</Text>
         </TouchableOpacity>
       </View>
 
       {/* Slide Content */}
       <View className="items-center px-4 my-auto">
-        <View className="w-32 h-32 bg-primary/20 rounded-full items-center justify-center mb-8">
+        <View className="w-36 h-36 bg-blue-100/70 border-4 border-blue-200 rounded-full items-center justify-center mb-8 shadow-sm">
           <Text className="text-6xl">{slide.icon}</Text>
         </View>
-        <Text className="text-dark-text text-3xl font-bold text-center mb-4">
+        <Text className="text-gray-900 text-3xl font-black text-center mb-3 tracking-tight">
           {slide.title}
         </Text>
-        <Text className="text-gray-400 text-lg text-center leading-6">
+        <Text className="text-gray-500 text-base text-center leading-6 font-medium">
           {slide.description}
         </Text>
       </View>
 
       {/* Bottom controls */}
-      <View className="mb-8">
+      <View>
         {/* Pagination Dots */}
         <View className="flex-row justify-center space-x-2 mb-8">
           {slides.map((_, index) => (
             <View
               key={index}
-              className={`h-2 rounded-full ${
-                index === currentSlide ? 'w-6 bg-primary-500' : 'w-2 bg-gray-600'
+              className={`h-2 rounded-full mx-1 ${
+                index === currentSlide ? 'w-7 bg-blue-600' : 'w-2 bg-gray-300'
               }`}
             />
           ))}
@@ -149,13 +160,15 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ navigation }
         {/* Action Button */}
         <TouchableOpacity
           onPress={handleNext}
-          className="bg-primary-500 py-4 rounded-xl items-center shadow-lg"
+          activeOpacity={0.85}
+          className="bg-blue-600 py-4 rounded-2xl items-center shadow-md shadow-blue-500/25"
         >
-          <Text className="text-white font-bold text-lg">
-            {currentSlide === slides.length - 1 ? 'Get Started & Grant Permissions' : 'Next'}
+          <Text className="text-white font-black text-base tracking-wide">
+            {currentSlide === slides.length - 1 ? 'Get Started & Grant Access' : 'Continue ➔'}
           </Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 };
+

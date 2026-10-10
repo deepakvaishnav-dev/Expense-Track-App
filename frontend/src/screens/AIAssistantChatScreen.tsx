@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../services/api';
 import * as ImagePicker from 'expo-image-picker';
 import { showCustomAlert } from '../store/alertStore';
@@ -13,6 +14,7 @@ interface Message {
 }
 
 export const AIAssistantChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -181,18 +183,25 @@ export const AIAssistantChatScreen: React.FC<{ navigation: any }> = ({ navigatio
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
       className="flex-1 bg-white"
     >
-      <View className="flex-1 bg-white p-6 justify-between">
+      <View 
+        className="flex-1 bg-white px-5 justify-between"
+        style={{
+          paddingTop: Math.max(insets.top, 16),
+          paddingBottom: Math.max(insets.bottom, 12),
+        }}
+      >
         {/* Header */}
-        <View className="flex-row items-center justify-between mt-6 mb-4">
+        <View className="flex-row items-center justify-between mb-4">
           <View className="flex-row items-center">
-            <TouchableOpacity onPress={() => navigation.pop()} className="mr-4">
-              <Text className="text-gray-900 text-2xl font-bold">←</Text>
+            <TouchableOpacity onPress={() => navigation.pop()} className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center mr-3">
+              <Text className="text-gray-900 text-lg font-bold">←</Text>
             </TouchableOpacity>
-            <Text className="text-gray-900 text-2xl font-black">AI Assistant Chat</Text>
+            <Text className="text-gray-900 text-xl font-black">AI Assistant</Text>
           </View>
-          <View className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center">
+          <View className="w-10 h-10 bg-blue-50 rounded-full items-center justify-center border border-blue-100">
             <Text className="text-lg">✨</Text>
           </View>
         </View>
