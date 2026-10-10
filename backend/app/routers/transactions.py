@@ -14,6 +14,7 @@ from app.schemas.schemas import (
 from app.services.ai_service import ai_service
 from app.services.budget_monitor import budget_monitor
 from app.routers.deps import get_current_active_user
+from app.routers.analytics import invalidate_analytics_cache
 from uuid import UUID
 from datetime import datetime, timezone
 from typing import List, Optional
@@ -90,6 +91,7 @@ async def create_transaction(
     await budget_monitor.evaluate_transaction_for_alerts(
         db, current_user.id, txn_in.category_id
     )
+    invalidate_analytics_cache(str(current_user.id))
 
     return db_txn
 
@@ -260,6 +262,7 @@ async def update_transaction(
     await budget_monitor.evaluate_transaction_for_alerts(
         db, current_user.id, db_txn.category_id
     )
+    invalidate_analytics_cache(str(current_user.id))
 
     return db_txn
 
@@ -307,6 +310,7 @@ async def delete_transaction(
     db.add(account)
     await db.delete(db_txn)
     await db.commit()
+    invalidate_analytics_cache(str(current_user.id))
     return None
 
 @router.post("/auto-detect", response_model=TransactionResponse)
@@ -438,5 +442,6 @@ async def auto_detect_transaction(
         await budget_monitor.evaluate_transaction_for_alerts(
             db, current_user.id, category.id
         )
+    invalidate_analytics_cache(str(current_user.id))
 
     return db_txn

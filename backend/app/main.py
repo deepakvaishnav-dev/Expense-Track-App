@@ -117,6 +117,7 @@ app.include_router(ai.router, prefix="/api")
 app.include_router(media.router, prefix="/api")
 
 @app.get("/health")
+@app.get("/api/health")
 async def health_check():
     """
     Unthrottled health check probe for load balancers, container orchestrators, and monitoring.

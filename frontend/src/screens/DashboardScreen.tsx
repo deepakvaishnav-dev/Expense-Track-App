@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Image, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../services/api';
@@ -7,9 +7,15 @@ import { useAuthStore } from '../store/authStore';
 import { Svg, Circle } from 'react-native-svg';
 import { showCustomAlert } from '../store/alertStore';
 import { khataService, KhataSummary } from '../services/khataService';
+import { DashboardSkeleton } from '../components/common';
+
+const DASHBOARD_CACHE_KEY = '@cache_dashboard_data_v2';
+const KHATA_CACHE_KEY = '@cache_khata_summary_v2';
 
 export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [data, setData] = useState<any>(null);
   const [activeInsight, setActiveInsight] = useState(0);
   const [profilePhotoUri, setProfilePhotoUri] = useState<string | null>(null);
@@ -22,12 +28,46 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   });
   const user = useAuthStore((state) => state.user);
 
+  // 1. Instant Cache Hydration: Loads cached state in 0ms on mount
+  useEffect(() => {
+    loadCachedDataFirst();
+  }, []);
+
+  const loadCachedDataFirst = async () => {
+    try {
+      const [cachedDashboard, cachedKhata] = await Promise.all([
+        AsyncStorage.getItem(DASHBOARD_CACHE_KEY),
+        AsyncStorage.getItem(KHATA_CACHE_KEY),
+      ]);
+
+      if (cachedDashboard) {
+        setData(JSON.parse(cachedDashboard));
+        setLoading(false); // Instantly render cached dashboard with 0ms delay!
+      }
+      if (cachedKhata) {
+        setKhataSummary(JSON.parse(cachedKhata));
+      }
+    } catch (e) {
+      console.warn('[Dashboard] Cache hydration error:', e);
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
-      fetchDashboardData();
+      // Re-fetch in the background silently (Stale-While-Revalidate)
+      fetchDashboardData(false);
+      loadKhataSummary();
       loadProfileAvatar();
     }, [])
   );
+
+  const loadKhataSummary = async () => {
+    try {
+      const kSum = await khataService.getSummary();
+      setKhataSummary(kSum);
+      AsyncStorage.setItem(KHATA_CACHE_KEY, JSON.stringify(kSum)).catch(() => {});
+    } catch {}
+  };
 
   const loadProfileAvatar = async () => {
     try {
@@ -41,35 +81,36 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     } catch {}
   };
 
-  const fetchDashboardData = async (showLoading = false) => {
-    if (showLoading) {
+  const fetchDashboardData = async (isManualRefresh = false) => {
+    if (isManualRefresh) {
+      setRefreshing(true);
+    } else if (!data) {
       setLoading(true);
+    } else {
+      setIsSyncing(true);
     }
+
     try {
-      const [res, kSum] = await Promise.all([
-        api.get('/analytics/summary'),
-        khataService.getSummary(),
-      ]);
-      setData(res.data);
-      setKhataSummary(kSum);
+      const res = await api.get('/analytics/summary');
+      if (res?.data) {
+        setData(res.data);
+        AsyncStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(res.data)).catch(() => {});
+      }
     } catch (e: any) {
-      console.warn(e);
-      // Still load khata summary locally even if network has a glitch
-      try {
-        const kSum = await khataService.getSummary();
-        setKhataSummary(kSum);
-      } catch {}
+      console.warn('[Dashboard] Summary fetch error:', e);
+      if (isManualRefresh) {
+        showCustomAlert('Notice', 'Could not refresh live data. Showing cached dashboard.', 'warning');
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
+      setIsSyncing(false);
     }
   };
 
-  if (loading) {
-    return (
-      <View className="flex-1 bg-white justify-center items-center">
-        <ActivityIndicator size="large" color="#3b82f6" />
-      </View>
-    );
+  // If no data exists at all (brand new user / first launch), render instant skeleton layout
+  if (loading && !data) {
+    return <DashboardSkeleton />;
   }
 
   const {
@@ -175,7 +216,21 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
   };
 
   return (
-    <ScrollView className="flex-1 bg-gray-50" showsVerticalScrollIndicator={false}>
+    <ScrollView 
+      className="flex-1 bg-gray-50" 
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => {
+            loadKhataSummary();
+            fetchDashboardData(true);
+          }}
+          colors={['#3b82f6']}
+          tintColor="#3b82f6"
+        />
+      }
+    >
       {/* Curved Blue Header container */}
       <View className="bg-blue-600 rounded-b-[40px] pt-12 pb-16 px-6 relative shadow-md">
         {/* Welcome and Actions */}
@@ -203,6 +258,12 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           </TouchableOpacity>
           
           <View className="flex-row items-center space-x-2">
+            {isSyncing && (
+              <View className="bg-white/20 px-2.5 py-1 rounded-full flex-row items-center mr-2">
+                <ActivityIndicator size="small" color="#ffffff" style={{ transform: [{ scale: 0.7 }], marginRight: 4 }} />
+                <Text className="text-white text-[10px] font-bold">Syncing...</Text>
+              </View>
+            )}
             <TouchableOpacity
               onPress={() => navigation.navigate('AIChat')}
               className="w-10 h-10 bg-white/20 rounded-full items-center justify-center mr-2"

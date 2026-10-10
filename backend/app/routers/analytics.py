@@ -7,10 +7,25 @@ from app.schemas.schemas import AnalyticsSummaryResponse, TransactionResponse
 from app.routers.deps import get_current_active_user
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
+import time
 from app.services.ai_service import ai_service, insights_cache
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
+
+# In-memory fast cache for user summary: user_id -> (timestamp, AnalyticsSummaryResponse)
+_analytics_cache: Dict[str, Tuple[float, AnalyticsSummaryResponse]] = {}
+CACHE_TTL_SECONDS = 60  # Cache for 60 seconds
+
+def invalidate_analytics_cache(user_id: Optional[str] = None):
+    """
+    Invalidates the analytics summary cache for a specific user (or all users if None).
+    Called whenever transactions or budgets are created/updated/deleted.
+    """
+    if user_id:
+        _analytics_cache.pop(str(user_id), None)
+    else:
+        _analytics_cache.clear()
 
 
 @router.get("/summary", response_model=AnalyticsSummaryResponse)
@@ -25,6 +40,12 @@ async def get_analytics_summary(
     All spending metrics are aggregated in a single unified SQL query.
     AI insights are non-blocking via TTL cache & background processing.
     """
+    user_key = str(current_user.id)
+    cached_entry = _analytics_cache.get(user_key)
+    if cached_entry:
+        cached_time, cached_response = cached_entry
+        if time.time() - cached_time < CACHE_TTL_SECONDS:
+            return cached_response
     now = datetime.now(timezone.utc)
     now_naive = now.replace(tzinfo=None)
     today_start = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
@@ -164,7 +185,7 @@ async def get_analytics_summary(
             True
         )
 
-    return AnalyticsSummaryResponse(
+    response = AnalyticsSummaryResponse(
         today_spending=today_spending,
         weekly_spending=weekly_spending,
         monthly_spending=monthly_spending,
@@ -175,6 +196,8 @@ async def get_analytics_summary(
         top_categories=top_categories,
         ai_insights=ai_insights
     )
+    _analytics_cache[user_key] = (time.time(), response)
+    return response
 
 
 @router.get("/ai-insights", response_model=List[str])
