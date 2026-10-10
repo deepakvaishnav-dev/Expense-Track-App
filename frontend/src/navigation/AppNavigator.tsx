@@ -89,7 +89,7 @@ const TabNavigator = () => {
                 { text: 'Cancel', style: 'cancel' },
                 { text: '💸 Expense / Income', onPress: () => navigation.navigate('AddTransaction') },
                 { text: '🧾 Scan Receipt with AI', onPress: () => navigation.navigate('ScanReceipt') },
-                { text: '👥 KhataBook (Udhaar P2P)', onPress: () => navigation.navigate('KhataBook') },
+                { text: '👥 Accounts Book (P2P Ledger)', onPress: () => navigation.navigate('KhataBook') },
               ]
             );
           },
@@ -125,7 +125,7 @@ const TabNavigator = () => {
         name="KhataTab" 
         component={KhataBookScreen} 
         options={{
-          tabBarLabel: 'Khata',
+          tabBarLabel: 'Accounts',
           tabBarIcon: ({ color, focused }) => <KhataIcon color={color} focused={focused} />,
         }}
       />

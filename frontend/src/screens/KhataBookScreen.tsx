@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Share,
+  Pressable,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +23,7 @@ import {
   KhataEntryType,
 } from '../services/khataService';
 import { showCustomAlert } from '../store/alertStore';
+import { DatePickerModal } from '../components/common';
 
 export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
@@ -55,6 +58,8 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [entryDate, setEntryDate] = useState<Date>(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Edit Person Form Inputs
   const [editName, setEditName] = useState('');
@@ -64,6 +69,12 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
   const [editTxnType, setEditTxnType] = useState<KhataEntryType>('GAVE');
   const [editTxnAmount, setEditTxnAmount] = useState('');
   const [editTxnNote, setEditTxnNote] = useState('');
+  const [editTxnDate, setEditTxnDate] = useState<Date>(new Date());
+  const [showEditDatePicker, setShowEditDatePicker] = useState(false);
+
+  // Reminder Modal
+  const [reminderModalVisible, setReminderModalVisible] = useState(false);
+  const [personToRemind, setPersonToRemind] = useState<KhataPerson | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -116,6 +127,7 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
     setPhone(selectedPerson?.phone || '');
     setAmount('');
     setNote('');
+    setEntryDate(new Date());
     setAddModalVisible(true);
   };
 
@@ -138,13 +150,19 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
         type: entryType,
         amount: parsedAmount,
         note,
+        date: entryDate.toISOString(),
       });
 
       setAddModalVisible(false);
       showCustomAlert(
-        'Record Saved!',
-        `${entryType === 'GAVE' ? 'Lent' : 'Borrowed'}: ₹${parsedAmount.toLocaleString()} (${personName}) recorded.`,
-        'success'
+        'Record Saved! ✅',
+        `${entryType === 'GAVE' ? 'Lent' : 'Borrowed'}: ₹${parsedAmount.toLocaleString('en-IN')} for ${personName.trim()} recorded.`,
+        'success',
+        undefined,
+        {
+          tag: entryType === 'GAVE' ? 'RECEIVABLE' : 'PAYABLE',
+          highlightText: `${entryType === 'GAVE' ? '+' : '-'} ₹${parsedAmount.toLocaleString('en-IN')}`,
+        }
       );
       await loadData();
     } catch (e) {
@@ -219,6 +237,7 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
     setEditTxnType(txn.type === 'SETTLE' ? 'GAVE' : txn.type);
     setEditTxnAmount(txn.amount.toString());
     setEditTxnNote(txn.note || '');
+    setEditTxnDate(txn.date ? new Date(txn.date) : new Date());
     setEditTxnModalVisible(true);
   };
 
@@ -236,10 +255,11 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
         type: editTxnType,
         amount: parsedAmount,
         note: editTxnNote,
+        date: editTxnDate.toISOString(),
       });
       setEditTxnModalVisible(false);
       setSelectedTxnToEdit(null);
-      showCustomAlert('Entry Updated', 'Transaction record updated successfully.', 'success');
+      showCustomAlert('Entry Updated! ✅', 'Transaction record updated successfully.', 'success');
       await loadData();
     } catch (e) {
       console.warn(e);
@@ -277,7 +297,7 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
   const handleSettleAccount = (person: KhataPerson) => {
     showCustomAlert(
       'Settle Account?',
-      `Clear pending balance of ₹${Math.abs(person.netBalance).toLocaleString()} for ${person.name}?`,
+      `Clear pending balance of ₹${Math.abs(person.netBalance).toLocaleString('en-IN')} for ${person.name}?`,
       'info',
       [
         { text: 'Cancel', style: 'cancel' },
@@ -293,31 +313,72 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
     );
   };
 
-  // WhatsApp Reminder
-  const handleSendWhatsAppReminder = (person: KhataPerson) => {
-    if (person.netBalance <= 0) {
-      showCustomAlert('No Pending Amount', `${person.name} does not have any pending receivable amount.`, 'info');
-      return;
+  // Reminder Functions
+  const openReminderModal = (person: KhataPerson) => {
+    setPersonToRemind(person);
+    setReminderModalVisible(true);
+  };
+
+  const getReminderMessage = (person: KhataPerson) => {
+    const isReceivable = person.netBalance > 0;
+    const absAmount = Math.abs(person.netBalance).toLocaleString('en-IN');
+    if (isReceivable) {
+      return `Hi ${person.name}, gentle reminder regarding your pending balance of ₹${absAmount} recorded on Accounts Book. Kindly clear it when convenient. Thank you! 🙏`;
+    } else {
+      return `Hi ${person.name}, this is a reminder regarding the pending payable amount of ₹${absAmount} on Accounts Book. Thank you!`;
     }
+  };
 
-    const message = encodeURIComponent(
-      `Hi ${person.name}, gentle reminder regarding pending balance of ₹${person.netBalance.toLocaleString()} recorded in Accounts Book. Thank you!`
-    );
-
+  const handleSendWhatsApp = (person: KhataPerson) => {
+    const msg = getReminderMessage(person);
     const cleanPhone = person.phone ? person.phone.replace(/[^0-9]/g, '') : '';
-    const url = cleanPhone ? `whatsapp://send?phone=${cleanPhone}&text=${message}` : `whatsapp://send?text=${message}`;
+    const url = cleanPhone
+      ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`
+      : `whatsapp://send?text=${encodeURIComponent(msg)}`;
 
-    Linking.canOpenURL(url)
-      .then((supported) => {
-        if (supported) {
-          Linking.openURL(url);
-        } else {
-          showCustomAlert('WhatsApp Not Available', 'WhatsApp app is not installed or available on this device.', 'warning');
-        }
-      })
-      .catch(() => {
-        showCustomAlert('Error', 'Could not open WhatsApp.', 'error');
+    Linking.openURL(url).catch(() => {
+      const fallback = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+      Linking.openURL(fallback).catch(() => {
+        showCustomAlert('WhatsApp Not Available', 'WhatsApp app is not available on this device.', 'warning');
       });
+    });
+  };
+
+  const handleSendSMS = (person: KhataPerson) => {
+    const msg = getReminderMessage(person);
+    const cleanPhone = person.phone ? person.phone.replace(/[^0-9]/g, '') : '';
+    const url = `sms:${cleanPhone}?body=${encodeURIComponent(msg)}`;
+
+    Linking.openURL(url).catch(() => {
+      showCustomAlert('SMS Not Available', 'Could not open messaging app.', 'warning');
+    });
+  };
+
+  const handleShareReminder = async (person: KhataPerson) => {
+    try {
+      const msg = getReminderMessage(person);
+      await Share.share({
+        title: 'Accounts Reminder',
+        message: msg,
+      });
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
+  const handleSetInAppReminder = (person: KhataPerson) => {
+    setReminderModalVisible(false);
+    showCustomAlert(
+      'Reminder Alert Set! 🔔',
+      `In-app reminder scheduled for ${person.name} regarding ₹${Math.abs(person.netBalance).toLocaleString('en-IN')}.`,
+      'success',
+      undefined,
+      {
+        tag: 'REMINDER ALERT',
+        highlightText: `₹${Math.abs(person.netBalance).toLocaleString('en-IN')}`,
+        iconEmoji: '🔔',
+      }
+    );
   };
 
   const filteredPersons = persons.filter((p) => {
@@ -486,6 +547,17 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
                       <Text className="text-gray-500 text-[11px] mt-0.5" numberOfLines={1}>
                         {person.lastNote || 'No recent notes'}
                       </Text>
+                      {person.lastTxnDate ? (
+                        <View className="flex-row items-center mt-1">
+                          <Text className="text-gray-400 text-[10px] font-bold">
+                            📅 {new Date(person.lastTxnDate).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
                   </View>
 
@@ -501,7 +573,7 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
                       }`}
                     >
                       {isReceivable ? '+' : isPayable ? '-' : ''}₹
-                      {Math.abs(person.netBalance).toLocaleString()}
+                      {Math.abs(person.netBalance).toLocaleString('en-IN')}
                     </Text>
                     <View
                       className={`px-2 py-0.5 rounded-md mt-1 ${
@@ -524,6 +596,21 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
                         {isReceivable ? 'RECEIVABLE' : isPayable ? 'PAYABLE' : 'SETTLED'}
                       </Text>
                     </View>
+
+                    {/* Quick Remind Button */}
+                    {person.netBalance !== 0 && (
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          openReminderModal(person);
+                        }}
+                        activeOpacity={0.8}
+                        className="mt-1.5 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 flex-row items-center"
+                      >
+                        <Text className="text-[10px] mr-1">🔔</Text>
+                        <Text className="text-blue-700 text-[9px] font-black">Remind</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </TouchableOpacity>
               );
@@ -626,6 +713,23 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
                 keyboardType="numeric"
                 className="bg-gray-100 rounded-2xl px-4 py-3 text-lg text-gray-900 font-black mb-3 border border-gray-200"
               />
+
+              {/* Transaction Date */}
+              <Text className="text-gray-700 text-xs font-bold mb-1.5">Transaction Date *</Text>
+              <TouchableOpacity
+                onPress={() => setShowDatePicker(true)}
+                activeOpacity={0.7}
+                className="bg-gray-100 rounded-2xl px-4 py-3 flex-row items-center justify-between mb-3 border border-gray-200"
+              >
+                <Text className="text-xs text-gray-900 font-bold">
+                  {entryDate.toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                  })}
+                </Text>
+                <Text className="text-sm">📅</Text>
+              </TouchableOpacity>
 
               {/* Phone Number (Optional) */}
               <Text className="text-gray-700 text-xs font-bold mb-1.5">Phone Number (Optional)</Text>
@@ -736,24 +840,24 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
                   </Text>
                 </View>
 
-                {/* Settle and WhatsApp Action Buttons */}
-                <View className="flex-row items-center mt-3 space-x-2">
+                {/* Settle and Reminder Action Buttons */}
+                <View className="flex-row items-center mt-3 gap-2 flex-wrap justify-center">
                   {selectedPerson.netBalance !== 0 && (
                     <TouchableOpacity
                       onPress={() => handleSettleAccount(selectedPerson)}
-                      className="bg-blue-50 border border-blue-200 px-3.5 py-1.5 rounded-full mr-2"
+                      className="bg-blue-50 border border-blue-200 px-3.5 py-1.5 rounded-full"
                     >
                       <Text className="text-blue-700 text-xs font-bold">🤝 Settle Account</Text>
                     </TouchableOpacity>
                   )}
 
-                  {selectedPerson.netBalance > 0 && (
+                  {selectedPerson.netBalance !== 0 && (
                     <TouchableOpacity
-                      onPress={() => handleSendWhatsAppReminder(selectedPerson)}
-                      className="bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-full flex-row items-center"
+                      onPress={() => openReminderModal(selectedPerson)}
+                      className="bg-emerald-600 px-4 py-1.5 rounded-full flex-row items-center shadow-xs"
                     >
-                      <Text className="mr-1">💬</Text>
-                      <Text className="text-emerald-700 text-xs font-bold">WhatsApp Reminder</Text>
+                      <Text className="mr-1 text-xs">🔔</Text>
+                      <Text className="text-white text-xs font-black">Send Reminder Alert</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -943,6 +1047,23 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
               className="bg-gray-100 rounded-2xl px-4 py-3 text-lg text-gray-900 font-black mb-3 border border-gray-200"
             />
 
+            {/* Transaction Date */}
+            <Text className="text-gray-700 text-xs font-bold mb-1.5">Transaction Date *</Text>
+            <TouchableOpacity
+              onPress={() => setShowEditDatePicker(true)}
+              activeOpacity={0.7}
+              className="bg-gray-100 rounded-2xl px-4 py-3 flex-row items-center justify-between mb-3 border border-gray-200"
+            >
+              <Text className="text-xs text-gray-900 font-bold">
+                {editTxnDate.toLocaleDateString('en-IN', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </Text>
+              <Text className="text-sm">📅</Text>
+            </TouchableOpacity>
+
             <Text className="text-gray-700 text-xs font-bold mb-1.5">Description / Reason</Text>
             <TextInput
               value={editTxnNote}
@@ -963,6 +1084,126 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Date Picker Modal for Add Entry */}
+      <DatePickerModal
+        visible={showDatePicker}
+        selectedDate={entryDate}
+        onSelectDate={(date) => setEntryDate(date)}
+        onClose={() => setShowDatePicker(false)}
+      />
+
+      {/* Date Picker Modal for Edit Entry */}
+      <DatePickerModal
+        visible={showEditDatePicker}
+        selectedDate={editTxnDate}
+        onSelectDate={(date) => setEditTxnDate(date)}
+        onClose={() => setShowEditDatePicker(false)}
+      />
+
+      {/* MODAL 5: SEND REMINDER ALERT */}
+      <Modal visible={reminderModalVisible} transparent animationType="fade">
+        <Pressable 
+          style={{ flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.65)', justifyContent: 'center', alignItems: 'center', padding: 22 }}
+          onPress={() => setReminderModalVisible(false)}
+        >
+          <Pressable 
+            style={{ width: '100%', maxWidth: 350, backgroundColor: '#ffffff', borderRadius: 28, padding: 22, shadowColor: '#0f172a', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 10 }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Header with Icon */}
+            <View className="items-center mb-3">
+              <View className="w-14 h-14 rounded-full bg-blue-50 border border-blue-200 items-center justify-center mb-2">
+                <Text className="text-2xl">🔔</Text>
+              </View>
+              <Text className="text-gray-900 text-lg font-black tracking-tight text-center">
+                Send Reminder Alert
+              </Text>
+              <Text className="text-gray-500 text-xs font-semibold text-center mt-0.5">
+                Contact: <Text className="text-gray-900 font-bold">{personToRemind?.name}</Text>
+              </Text>
+
+              {personToRemind && (
+                <View className={`mt-2 px-3 py-1 rounded-full ${personToRemind.netBalance > 0 ? 'bg-emerald-50 border border-emerald-200' : 'bg-rose-50 border border-rose-200'}`}>
+                  <Text className={`text-xs font-black ${personToRemind.netBalance > 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    {personToRemind.netBalance > 0 ? 'Pending to Receive: +' : 'Pending to Pay: -'}₹{Math.abs(personToRemind.netBalance).toLocaleString('en-IN')}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* Reminder Message Preview Box */}
+            <View className="bg-gray-50 p-3 rounded-2xl border border-gray-200 mb-4">
+              <Text className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">Preview Message</Text>
+              <Text className="text-gray-700 text-xs leading-relaxed font-medium">
+                {personToRemind ? getReminderMessage(personToRemind) : ''}
+              </Text>
+            </View>
+
+            {/* Options List */}
+            <View className="gap-2.5 mb-2">
+              {/* WhatsApp Button */}
+              <TouchableOpacity
+                onPress={() => {
+                  setReminderModalVisible(false);
+                  if (personToRemind) handleSendWhatsApp(personToRemind);
+                }}
+                activeOpacity={0.85}
+                className="bg-emerald-600 py-3 px-4 rounded-2xl flex-row items-center justify-center shadow-xs"
+              >
+                <Text className="text-white text-base mr-2">💬</Text>
+                <Text className="text-white text-xs font-black tracking-wide">Send via WhatsApp</Text>
+              </TouchableOpacity>
+
+              {/* SMS Button */}
+              <TouchableOpacity
+                onPress={() => {
+                  setReminderModalVisible(false);
+                  if (personToRemind) handleSendSMS(personToRemind);
+                }}
+                activeOpacity={0.85}
+                className="bg-blue-600 py-3 px-4 rounded-2xl flex-row items-center justify-center shadow-xs"
+              >
+                <Text className="text-white text-base mr-2">📱</Text>
+                <Text className="text-white text-xs font-black tracking-wide">Send via SMS</Text>
+              </TouchableOpacity>
+
+              {/* Native Share Button */}
+              <TouchableOpacity
+                onPress={() => {
+                  setReminderModalVisible(false);
+                  if (personToRemind) handleShareReminder(personToRemind);
+                }}
+                activeOpacity={0.85}
+                className="bg-indigo-600 py-3 px-4 rounded-2xl flex-row items-center justify-center shadow-xs"
+              >
+                <Text className="text-white text-base mr-2">📤</Text>
+                <Text className="text-white text-xs font-black tracking-wide">Share via Any App</Text>
+              </TouchableOpacity>
+
+              {/* In-App Reminder Alert */}
+              <TouchableOpacity
+                onPress={() => {
+                  if (personToRemind) handleSetInAppReminder(personToRemind);
+                }}
+                activeOpacity={0.85}
+                className="bg-amber-500 py-3 px-4 rounded-2xl flex-row items-center justify-center shadow-xs"
+              >
+                <Text className="text-white text-base mr-2">🔔</Text>
+                <Text className="text-white text-xs font-black tracking-wide">Set In-App Reminder Alert</Text>
+              </TouchableOpacity>
+
+              {/* Cancel Button */}
+              <TouchableOpacity
+                onPress={() => setReminderModalVisible(false)}
+                className="py-2.5 rounded-2xl items-center justify-center border border-gray-200 bg-gray-100 mt-1"
+              >
+                <Text className="text-gray-700 text-xs font-bold">Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );

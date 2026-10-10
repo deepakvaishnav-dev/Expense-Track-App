@@ -14,6 +14,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuthStore } from '../store/authStore';
 import { showCustomAlert } from '../store/alertStore';
+import { useThemeStore } from '../store/themeStore';
+import { useSecurityStore } from '../store/securityStore';
+import { SettingsModal } from '../components/settings/SettingsModal';
 import { api } from '../services/api';
 
 declare const window: any;
@@ -62,6 +65,10 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
   const [avatarCategoryTab, setAvatarCategoryTab] = useState<'male' | 'female' | 'fun'>('male');
   const [photoOptionsModalVisible, setPhotoOptionsModalVisible] = useState(false);
   const [avatarPickerModalVisible, setAvatarPickerModalVisible] = useState(false);
+
+  const { theme } = useThemeStore();
+  const isAppLockEnabled = useSecurityStore((state) => state.isAppLockEnabled);
+  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
 
   // Hidden web file input ref for web browser testing
   const fileInputRef = React.useRef<any>(null);
@@ -393,7 +400,24 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
       )}
 
       {/* Header Profile Banner */}
-      <View className="bg-blue-600 rounded-b-[40px] pt-12 pb-16 px-6 relative shadow-md">
+      <View 
+        style={{ backgroundColor: theme.primary }} 
+        className="rounded-b-[40px] pt-12 pb-16 px-6 relative shadow-md"
+      >
+        {/* Top Header Row with Theme Badge & Settings Icon */}
+        <View className="flex-row justify-between items-center mb-3">
+          <View className="flex-row items-center bg-white/20 px-3 py-1.5 rounded-full border border-white/25">
+            <Text className="text-white text-xs font-bold">🎨 {theme.name}</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => setSettingsModalVisible(true)}
+            activeOpacity={0.8}
+            className="w-10 h-10 rounded-full bg-white/20 border border-white/30 items-center justify-center shadow-sm"
+          >
+            <Text className="text-lg">⚙️</Text>
+          </TouchableOpacity>
+        </View>
+
         <View className="items-center">
           {/* Avatar with Camera Badge */}
           <View className="relative mb-3">
@@ -531,7 +555,46 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           </View>
         </TouchableOpacity>
 
-        {/* 3. Download Statements */}
+        {/* 3. Settings & Security Quick Access Hub */}
+        <TouchableOpacity
+          onPress={() => setSettingsModalVisible(true)}
+          activeOpacity={0.85}
+          className="bg-white rounded-3xl p-5 shadow-sm border border-gray-100 mb-6 flex-row items-center justify-between"
+        >
+          <View className="flex-row items-center flex-1 mr-3">
+            <View 
+              style={{ backgroundColor: `${theme.primary}18`, borderColor: `${theme.primary}35` }} 
+              className="w-12 h-12 rounded-2xl border items-center justify-center mr-3.5"
+            >
+              <Text className="text-2xl">⚙️</Text>
+            </View>
+            <View className="flex-1">
+              <View className="flex-row items-center mb-0.5">
+                <Text className="text-gray-900 text-sm font-black mr-2">Settings & Security</Text>
+                {isAppLockEnabled ? (
+                  <View className="bg-emerald-100 px-2 py-0.5 rounded-full flex-row items-center border border-emerald-200">
+                    <Text className="text-emerald-700 text-[10px] font-black">🔒 SECURED</Text>
+                  </View>
+                ) : (
+                  <View className="bg-amber-100 px-2 py-0.5 rounded-full flex-row items-center border border-amber-200">
+                    <Text className="text-amber-700 text-[10px] font-black">⚠️ UNPROTECTED</Text>
+                  </View>
+                )}
+              </View>
+              <Text className="text-gray-500 text-xs font-medium">
+                Edit profile, 5 Themes ({theme.name}), PIN Lock & Backup
+              </Text>
+            </View>
+          </View>
+          <View 
+            style={{ backgroundColor: `${theme.primary}15` }} 
+            className="w-8 h-8 rounded-full items-center justify-center"
+          >
+            <Text style={{ color: theme.primary }} className="font-bold text-sm">➔</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* 4. Download Statements */}
         <View className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-6">
           <View className="flex-row items-center mb-3">
             <Text className="text-2xl mr-2">📑</Text>
@@ -590,7 +653,8 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             onPress={handleDownloadStatement}
             disabled={downloading}
             activeOpacity={0.8}
-            className="bg-blue-600 py-4 rounded-2xl items-center justify-center shadow-md flex-row gap-2"
+            style={{ backgroundColor: theme.primary }}
+            className="py-4 rounded-2xl items-center justify-center shadow-md flex-row gap-2"
           >
             {downloading ? (
               <ActivityIndicator size="small" color="#ffffff" />
@@ -804,6 +868,12 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
           </View>
         </View>
       </Modal>
+
+      {/* Senior Fintech Settings Modal */}
+      <SettingsModal
+        visible={settingsModalVisible}
+        onClose={() => setSettingsModalVisible(false)}
+      />
     </ScrollView>
   );
 };

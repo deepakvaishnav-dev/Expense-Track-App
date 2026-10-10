@@ -61,10 +61,15 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ navigation }) =>
       // 4. Save and Navigate
       loginStore(userProfile.data, access_token, refresh_token);
       showCustomAlert(
-        'Welcome!',
-        'Your account has been created successfully.',
+        'Welcome to Expense AI! 🚀',
+        'Your account has been created successfully. Ready to track your money smartly!',
         'success',
-        [{ text: 'Get Started', onPress: () => navigation.replace('Main') }]
+        [{ text: 'Get Started', onPress: () => navigation.replace('Main') }],
+        {
+          tag: 'ACCOUNT CREATED',
+          highlightText: userProfile.data?.full_name || 'New Member',
+          iconEmoji: '🎉',
+        }
       );
     } catch (error: any) {
       console.warn(error);

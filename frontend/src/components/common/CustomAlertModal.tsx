@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Modal, TouchableOpacity, Platform, StyleSheet } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, StyleSheet, Pressable } from 'react-native';
 import { Svg, Path, Circle } from 'react-native-svg';
 import { useAlertStore } from '../../store/alertStore';
 
@@ -17,6 +17,9 @@ export const CustomAlertModal: React.FC = () => {
     onCancel,
     confirmText = 'Got It',
     cancelText = 'Cancel',
+    tag,
+    highlightText,
+    iconEmoji,
   } = options;
 
   const handleButtonPress = (btnPress?: () => void) => {
@@ -26,21 +29,107 @@ export const CustomAlertModal: React.FC = () => {
     }
   };
 
-  // Icon and theme config based on alert type
+  // Determine contextual color scheme
   const getThemeConfig = () => {
+    // If specific tag is provided, customize palette
+    const upperTag = tag?.toUpperCase();
+    if (upperTag === 'EXPENSE') {
+      return {
+        outerBg: '#fee2e2',
+        innerBg: '#fecaca',
+        borderColor: '#fca5a5',
+        buttonColor: '#2563eb', // Clean primary blue for expense action button
+        tagBg: '#fef2f2',
+        tagBorder: '#fecaca',
+        tagColor: '#dc2626',
+        highlightColor: '#dc2626',
+        highlightBg: '#fff1f2',
+        highlightBorder: '#ffe4e6',
+        icon: (
+          <Svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+            <Path
+              d="M12 4v16m0 0l-5-5m5 5l5-5"
+              stroke="#dc2626"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </Svg>
+        ),
+      };
+    }
+
+    if (upperTag === 'INCOME') {
+      return {
+        outerBg: '#d1fae5',
+        innerBg: '#a7f3d0',
+        borderColor: '#6ee7b7',
+        buttonColor: '#059669', // Rich emerald
+        tagBg: '#ecfdf5',
+        tagBorder: '#a7f3d0',
+        tagColor: '#059669',
+        highlightColor: '#059669',
+        highlightBg: '#ecfdf5',
+        highlightBorder: '#a7f3d0',
+        icon: (
+          <Svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+            <Path
+              d="M12 20V4m0 0l5 5m-5-5l-5 5"
+              stroke="#059669"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </Svg>
+        ),
+      };
+    }
+
+    if (upperTag === 'AUTHENTICATED' || upperTag === 'LOGIN') {
+      return {
+        outerBg: '#dbeafe',
+        innerBg: '#bfdbfe',
+        borderColor: '#93c5fd',
+        buttonColor: '#2563eb',
+        tagBg: '#eff6ff',
+        tagBorder: '#bfdbfe',
+        tagColor: '#1d4ed8',
+        highlightColor: '#1d4ed8',
+        highlightBg: '#eff6ff',
+        highlightBorder: '#dbeafe',
+        icon: (
+          <Svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+            <Path
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              stroke="#2563eb"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </Svg>
+        ),
+      };
+    }
+
     switch (type) {
       case 'success':
         return {
-          bgColor: '#ecfdf5',
+          outerBg: '#ecfdf5',
+          innerBg: '#d1fae5',
           borderColor: '#a7f3d0',
-          buttonColor: '#10b981',
+          buttonColor: '#059669',
+          tagBg: '#ecfdf5',
+          tagBorder: '#a7f3d0',
+          tagColor: '#059669',
+          highlightColor: '#059669',
+          highlightBg: '#ecfdf5',
+          highlightBorder: '#a7f3d0',
           icon: (
-            <Svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-              <Circle cx="12" cy="12" r="10" fill="#10b981" fillOpacity="0.18" />
+            <Svg width="30" height="30" viewBox="0 0 24 24" fill="none">
               <Path
-                d="M8 12.5l2.5 2.5 5.5-5.5"
-                stroke="#10b981"
-                strokeWidth="2.5"
+                d="M5 13l4 4L19 7"
+                stroke="#059669"
+                strokeWidth="2.8"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -49,16 +138,22 @@ export const CustomAlertModal: React.FC = () => {
         };
       case 'error':
         return {
-          bgColor: '#fef2f2',
-          borderColor: '#fecaca',
+          outerBg: '#fef2f2',
+          innerBg: '#fee2e2',
+          borderColor: '#fca5a5',
           buttonColor: '#ef4444',
+          tagBg: '#fef2f2',
+          tagBorder: '#fecaca',
+          tagColor: '#dc2626',
+          highlightColor: '#dc2626',
+          highlightBg: '#fef2f2',
+          highlightBorder: '#fecaca',
           icon: (
-            <Svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-              <Circle cx="12" cy="12" r="10" fill="#ef4444" fillOpacity="0.18" />
+            <Svg width="28" height="28" viewBox="0 0 24 24" fill="none">
               <Path
-                d="M15 9l-6 6m0-6l6 6"
+                d="M18 6L6 18M6 6l12 12"
                 stroke="#ef4444"
-                strokeWidth="2.5"
+                strokeWidth="2.6"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -67,16 +162,22 @@ export const CustomAlertModal: React.FC = () => {
         };
       case 'warning':
         return {
-          bgColor: '#fffbeb',
+          outerBg: '#fffbeb',
+          innerBg: '#fef3c7',
           borderColor: '#fde68a',
-          buttonColor: '#f59e0b',
+          buttonColor: '#d97706',
+          tagBg: '#fffbeb',
+          tagBorder: '#fde68a',
+          tagColor: '#b45309',
+          highlightColor: '#b45309',
+          highlightBg: '#fffbeb',
+          highlightBorder: '#fde68a',
           icon: (
-            <Svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-              <Circle cx="12" cy="12" r="10" fill="#f59e0b" fillOpacity="0.18" />
+            <Svg width="28" height="28" viewBox="0 0 24 24" fill="none">
               <Path
-                d="M12 8v4m0 4h.01"
-                stroke="#f59e0b"
-                strokeWidth="2.5"
+                d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"
+                stroke="#d97706"
+                strokeWidth="2.3"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -86,16 +187,22 @@ export const CustomAlertModal: React.FC = () => {
       case 'info':
       default:
         return {
-          bgColor: '#eff6ff',
+          outerBg: '#eff6ff',
+          innerBg: '#dbeafe',
           borderColor: '#bfdbfe',
-          buttonColor: '#3b82f6',
+          buttonColor: '#2563eb',
+          tagBg: '#eff6ff',
+          tagBorder: '#bfdbfe',
+          tagColor: '#1d4ed8',
+          highlightColor: '#1d4ed8',
+          highlightBg: '#eff6ff',
+          highlightBorder: '#dbeafe',
           icon: (
-            <Svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-              <Circle cx="12" cy="12" r="10" fill="#3b82f6" fillOpacity="0.18" />
+            <Svg width="28" height="28" viewBox="0 0 24 24" fill="none">
               <Path
-                d="M12 16v-4m0-4h.01"
-                stroke="#3b82f6"
-                strokeWidth="2.5"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                stroke="#2563eb"
+                strokeWidth="2.3"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -115,22 +222,61 @@ export const CustomAlertModal: React.FC = () => {
       onRequestClose={hideAlert}
       statusBarTranslucent
     >
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
-          {/* Circular Glowing Icon Badge */}
+      <Pressable style={styles.backdrop} onPress={hideAlert}>
+        <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
+          {/* Optional Category Tag */}
+          {tag && (
+            <View
+              style={[
+                styles.tagBadge,
+                { backgroundColor: theme.tagBg, borderColor: theme.tagBorder },
+              ]}
+            >
+              <Text style={[styles.tagText, { color: theme.tagColor }]}>
+                {tag}
+              </Text>
+            </View>
+          )}
+
+          {/* Dual-layered Icon / Emoji Hero Badge */}
           <View
             style={[
-              styles.iconBadge,
-              { backgroundColor: theme.bgColor, borderColor: theme.borderColor },
+              styles.outerRing,
+              { backgroundColor: theme.outerBg, borderColor: theme.borderColor },
             ]}
           >
-            {theme.icon}
+            <View style={[styles.innerRing, { backgroundColor: theme.innerBg }]}>
+              {iconEmoji ? (
+                <Text style={styles.emojiText}>{iconEmoji}</Text>
+              ) : (
+                theme.icon
+              )}
+            </View>
           </View>
 
           {/* Title */}
           <Text style={styles.title}>{title}</Text>
 
-          {/* Message */}
+          {/* Amount / Highlight Chip (if available) */}
+          {highlightText && (
+            <View
+              style={[
+                styles.highlightChip,
+                { backgroundColor: theme.highlightBg, borderColor: theme.highlightBorder },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.highlightText,
+                  { color: theme.highlightColor },
+                ]}
+              >
+                {highlightText}
+              </Text>
+            </View>
+          )}
+
+          {/* Message / Description */}
           <Text style={styles.message}>{message}</Text>
 
           {/* Action Buttons */}
@@ -150,9 +296,9 @@ export const CustomAlertModal: React.FC = () => {
                 const btnBg = isDestructive
                   ? '#ef4444'
                   : isCancel
-                  ? '#f3f4f6'
+                  ? '#f1f5f9'
                   : theme.buttonColor;
-                const txtColor = isCancel ? '#374151' : '#ffffff';
+                const txtColor = isCancel ? '#475569' : '#ffffff';
 
                 return (
                   <TouchableOpacity
@@ -166,7 +312,7 @@ export const CustomAlertModal: React.FC = () => {
                         flex: buttons.length === 2 ? 1 : undefined,
                         width: buttons.length === 2 ? undefined : '100%',
                         borderWidth: isCancel ? 1 : 0,
-                        borderColor: '#e5e7eb',
+                        borderColor: '#e2e8f0',
                       },
                     ]}
                   >
@@ -185,10 +331,17 @@ export const CustomAlertModal: React.FC = () => {
                   activeOpacity={0.85}
                   style={[
                     styles.button,
-                    { flex: 1, backgroundColor: '#f3f4f6', borderWidth: 1, borderColor: '#e5e7eb' },
+                    {
+                      flex: 1,
+                      backgroundColor: '#f1f5f9',
+                      borderWidth: 1,
+                      borderColor: '#e2e8f0',
+                    },
                   ]}
                 >
-                  <Text style={[styles.buttonText, { color: '#374151' }]}>{cancelText}</Text>
+                  <Text style={[styles.buttonText, { color: '#475569' }]}>
+                    {cancelText}
+                  </Text>
                 </TouchableOpacity>
               )}
               <TouchableOpacity
@@ -203,12 +356,14 @@ export const CustomAlertModal: React.FC = () => {
                   },
                 ]}
               >
-                <Text style={[styles.buttonText, { color: '#ffffff' }]}>{confirmText}</Text>
+                <Text style={[styles.buttonText, { color: '#ffffff' }]}>
+                  {confirmText}
+                </Text>
               </TouchableOpacity>
             </View>
           )}
-        </View>
-      </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 };
@@ -218,49 +373,87 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingHorizontal: 22,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
   },
   card: {
     width: '100%',
-    maxWidth: 340,
+    maxWidth: 345,
     backgroundColor: '#ffffff',
-    borderRadius: 28,
+    borderRadius: 30,
     paddingHorizontal: 22,
-    paddingTop: 26,
+    paddingTop: 24,
     paddingBottom: 22,
     alignItems: 'center',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 8,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 12,
   },
-  iconBadge: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
+  tagBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4.5,
+    borderRadius: 100,
+    borderWidth: 1,
+    marginBottom: 14,
+    alignSelf: 'center',
+  },
+  tagText: {
+    fontSize: 10.5,
+    fontWeight: '900',
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+  },
+  outerRing: {
+    width: 74,
+    height: 74,
+    borderRadius: 37,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
   },
+  innerRing: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emojiText: {
+    fontSize: 26,
+  },
   title: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#111827',
+    fontWeight: '900',
+    color: '#0f172a',
     textAlign: 'center',
-    marginBottom: 8,
-    letterSpacing: -0.3,
+    marginBottom: 6,
+    letterSpacing: -0.4,
+  },
+  highlightChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 7,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginVertical: 8,
+    alignSelf: 'center',
+  },
+  highlightText: {
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+    textAlign: 'center',
   },
   message: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#6b7280',
+    color: '#64748b',
     textAlign: 'center',
     lineHeight: 20,
-    marginBottom: 22,
-    paddingHorizontal: 6,
+    marginBottom: 20,
+    paddingHorizontal: 4,
   },
   buttonSingle: {
     width: '100%',
@@ -276,18 +469,23 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   button: {
-    height: 48,
-    minHeight: 48,
-    borderRadius: 16,
+    height: 50,
+    minHeight: 50,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   buttonText: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     textAlign: 'center',
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
     includeFontPadding: false,
     textAlignVertical: 'center',
   },

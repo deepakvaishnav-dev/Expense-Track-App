@@ -52,8 +52,29 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       // Save credentials in local store
       loginStore(userProfile.data, access_token, refresh_token);
       
-      // Navigate to Dashboard
-      navigation.replace('Main');
+      const timer = setTimeout(() => {
+        navigation.replace('Main');
+      }, 1800);
+
+      showCustomAlert(
+        'Welcome Back! 👋',
+        `Successfully logged in as ${userProfile.data?.full_name || 'User'}.`,
+        'success',
+        [
+          {
+            text: 'Continue',
+            onPress: () => {
+              clearTimeout(timer);
+              navigation.replace('Main');
+            },
+          },
+        ],
+        {
+          tag: 'AUTHENTICATED',
+          highlightText: userProfile.data?.full_name || 'Account Active',
+          iconEmoji: '🎉',
+        }
+      );
     } catch (error: any) {
       console.warn(error);
       const msg = error.response?.data?.detail || 'Invalid email or password. Please try again.';

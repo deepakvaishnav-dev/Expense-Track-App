@@ -17,6 +17,9 @@ export interface AlertOptions {
   onCancel?: () => void;
   confirmText?: string;
   cancelText?: string;
+  tag?: string;
+  highlightText?: string;
+  iconEmoji?: string;
 }
 
 interface AlertState {
@@ -44,12 +47,16 @@ export const showCustomAlert = (
   title: string,
   message: string,
   type: AlertType = 'info',
-  buttons?: AlertButton[]
+  buttons?: AlertButton[],
+  extra?: { tag?: string; highlightText?: string; iconEmoji?: string }
 ) => {
   useAlertStore.getState().showAlert({
     title,
     message,
     type,
     buttons,
+    tag: extra?.tag,
+    highlightText: extra?.highlightText,
+    iconEmoji: extra?.iconEmoji,
   });
 };

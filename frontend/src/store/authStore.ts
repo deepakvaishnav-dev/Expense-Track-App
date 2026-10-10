@@ -119,12 +119,15 @@ interface AuthState {
     email: string;
     full_name: string;
     is_admin: boolean;
+    phone?: string;
+    currency?: string;
   } | null;
   accessToken: string | null;
   refreshToken: string | null;
   isAuthenticated: boolean;
   isHydrated: boolean;
   login: (user: any, accessToken: string, refreshToken: string) => void;
+  updateUser: (updates: Partial<{ full_name: string; email: string; phone?: string; currency?: string }>) => void;
   setTokens: (accessToken: string, refreshToken: string) => void;
   logout: () => Promise<void>;
 }
@@ -153,6 +156,15 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (e) {
       console.warn('[SecureStore] Native bridge token sync error:', e);
     }
+  },
+
+  updateUser: (updates) => {
+    set((state) => {
+      if (!state.user) return state;
+      const updated = { ...state.user, ...updates };
+      secureStoreManager.setItem('user', JSON.stringify(updated)).catch(console.warn);
+      return { user: updated };
+    });
   },
 
   setTokens: (accessToken, refreshToken) => {

@@ -1,5 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  ScrollView, 
+  ActivityIndicator, 
+  Platform,
+  KeyboardAvoidingView,
+  Keyboard
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useForm, Controller } from 'react-hook-form';
 import { api } from '../services/api';
@@ -8,6 +18,9 @@ import { showCustomAlert } from '../store/alertStore';
 
 export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
+  const scrollViewRef = useRef<ScrollView>(null);
+  const isBottomFieldFocused = useRef(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [loading, setLoading] = useState(false);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -38,6 +51,31 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
 
   useEffect(() => {
     fetchFormData();
+  }, []);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardHeight(e.endCoordinates.height);
+        if (isBottomFieldFocused.current) {
+          setTimeout(() => {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+          }, 100);
+        }
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
   }, []);
 
   const fetchFormData = async () => {
@@ -124,14 +162,45 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
         tagsInput: '',
       });
       
-      showCustomAlert(
-        'Success', 
-        transactionToEdit ? 'Transaction updated successfully.' : 'Transaction logged successfully.', 
-        'success',
-        [
-          { text: 'Great!', onPress: () => navigation.pop() }
-        ]
-      );
+      const formattedAmount = parseFloat(data.amount).toLocaleString('en-IN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+
+      if (transactionToEdit) {
+        showCustomAlert(
+          'Transaction Updated! ✨',
+          `Successfully updated ${data.type.toLowerCase()} details.`,
+          'success',
+          [{ text: 'Great!', onPress: () => navigation.pop() }],
+          {
+            tag: data.type.toUpperCase(),
+            highlightText: `₹${formattedAmount}`,
+          }
+        );
+      } else if (data.type === 'Income') {
+        showCustomAlert(
+          'Income Added! 💰',
+          `Successfully added Income of ₹${formattedAmount}${data.merchant?.trim() ? ` from ${data.merchant.trim()}` : ''}.`,
+          'success',
+          [{ text: 'Great!', onPress: () => navigation.pop() }],
+          {
+            tag: 'INCOME',
+            highlightText: `+ ₹${formattedAmount}`,
+          }
+        );
+      } else {
+        showCustomAlert(
+          'Expense Added! 💸',
+          `Successfully added Expense of ₹${formattedAmount}${data.merchant?.trim() ? ` for ${data.merchant.trim()}` : ''}.`,
+          'success',
+          [{ text: 'Great!', onPress: () => navigation.pop() }],
+          {
+            tag: 'EXPENSE',
+            highlightText: `- ₹${formattedAmount}`,
+          }
+        );
+      }
     } catch (error: any) {
       console.warn(error);
       const msg = error.response?.data?.detail || 'Failed to save transaction.';
@@ -169,12 +238,21 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
   };
 
   return (
-    <ScrollView 
-      className="flex-1 bg-white px-6" 
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 40, 60), paddingTop: Math.max(insets.top, 16) }}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      className="flex-1 bg-white"
     >
+      <ScrollView 
+        ref={scrollViewRef}
+        className="flex-1 bg-white px-6" 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        contentContainerStyle={{ 
+          paddingTop: Math.max(insets.top, 16),
+          paddingBottom: Math.max(insets.bottom + 40, 60) + (Platform.OS === 'android' ? keyboardHeight : 20),
+        }}
+      >
       {/* Header */}
       <View className="flex-row items-center justify-between gap-3 mb-6">
         <View className="flex-row items-center">
@@ -411,8 +489,17 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
             <TextInput
               value={value}
               onChangeText={onChange}
-              placeholder="Add payment actions (comma separated)..."
+              placeholder="Add tags (comma separated, e.g. food, trip)..."
               placeholderTextColor="#94a3b8"
+              onFocus={() => {
+                isBottomFieldFocused.current = true;
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                }, 200);
+              }}
+              onBlur={() => {
+                isBottomFieldFocused.current = false;
+              }}
               style={{ outlineStyle: 'none' } as any}
               className="border border-gray-200 rounded-2xl px-4 py-3.5 text-gray-800 text-sm font-semibold"
             />
@@ -434,6 +521,15 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
               placeholderTextColor="#94a3b8"
               multiline
               numberOfLines={2}
+              onFocus={() => {
+                isBottomFieldFocused.current = true;
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                }, 200);
+              }}
+              onBlur={() => {
+                isBottomFieldFocused.current = false;
+              }}
               style={{ outlineStyle: 'none' } as any}
               className="border border-gray-200 rounded-2xl px-4 py-3.5 text-gray-800 text-sm font-semibold"
             />
@@ -463,5 +559,6 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
         onClose={() => setShowDatePicker(false)}
       />
     </ScrollView>
-  );
+  </KeyboardAvoidingView>
+);
 };
