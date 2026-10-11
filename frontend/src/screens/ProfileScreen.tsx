@@ -18,6 +18,7 @@ import { useThemeStore } from '../store/themeStore';
 import { useSecurityStore } from '../store/securityStore';
 import { SettingsModal } from '../components/settings/SettingsModal';
 import { api } from '../services/api';
+import { cacheService, CACHE_KEYS } from '../services/cacheService';
 
 declare const window: any;
 declare const document: any;
@@ -227,28 +228,33 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     }
   };
 
-  const fetchUserActivityStats = async () => {
-    setLoadingStats(true);
-    try {
-      const res = await api.get('/transactions/?limit=100');
-      const txns: any[] = res.data || [];
-      setTotalTransactions(txns.length);
+  const computeActivityStats = (txns: any[]) => {
+    setTotalTransactions(txns.length);
 
-      if (txns.length > 0) {
-        const uniqueDates = new Set<string>();
-        txns.forEach((t) => {
-          if (t.date) {
-            const dateStr = new Date(t.date).toDateString();
-            uniqueDates.add(dateStr);
-          }
-        });
+    if (txns.length > 0) {
+      const uniqueDates = new Set<string>();
+      txns.forEach((t) => {
+        if (t.date) {
+          const dateStr = new Date(t.date).toDateString();
+          uniqueDates.add(dateStr);
+        }
+      });
 
-        let streak = 0;
-        const checkDate = new Date();
-        const todayStr = checkDate.toDateString();
-        const hasToday = uniqueDates.has(todayStr);
+      let streak = 0;
+      const checkDate = new Date();
+      const todayStr = checkDate.toDateString();
+      const hasToday = uniqueDates.has(todayStr);
 
-        if (hasToday) {
+      if (hasToday) {
+        streak = 1;
+        checkDate.setDate(checkDate.getDate() - 1);
+        while (uniqueDates.has(checkDate.toDateString())) {
+          streak++;
+          checkDate.setDate(checkDate.getDate() - 1);
+        }
+      } else {
+        checkDate.setDate(checkDate.getDate() - 1);
+        if (uniqueDates.has(checkDate.toDateString())) {
           streak = 1;
           checkDate.setDate(checkDate.getDate() - 1);
           while (uniqueDates.has(checkDate.toDateString())) {
@@ -256,37 +262,45 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             checkDate.setDate(checkDate.getDate() - 1);
           }
         } else {
-          checkDate.setDate(checkDate.getDate() - 1);
-          if (uniqueDates.has(checkDate.toDateString())) {
-            streak = 1;
-            checkDate.setDate(checkDate.getDate() - 1);
-            while (uniqueDates.has(checkDate.toDateString())) {
-              streak++;
-              checkDate.setDate(checkDate.getDate() - 1);
-            }
-          } else {
-            streak = 1;
-          }
+          streak = 1;
         }
-        setStreakCount(Math.max(1, streak));
-
-        const now = new Date();
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() - now.getDay());
-
-        const weekDays = [false, false, false, false, false, false, false];
-        for (let i = 0; i < 7; i++) {
-          const d = new Date(startOfWeek);
-          d.setDate(startOfWeek.getDate() + i);
-          if (uniqueDates.has(d.toDateString())) {
-            weekDays[i] = true;
-          }
-        }
-        setActiveDaysThisWeek(weekDays);
-      } else {
-        setStreakCount(1);
-        setActiveDaysThisWeek([true, false, false, false, false, false, false]);
       }
+      setStreakCount(Math.max(1, streak));
+
+      const now = new Date();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+
+      const weekDays = [false, false, false, false, false, false, false];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(startOfWeek);
+        d.setDate(startOfWeek.getDate() + i);
+        if (uniqueDates.has(d.toDateString())) {
+          weekDays[i] = true;
+        }
+      }
+      setActiveDaysThisWeek(weekDays);
+    } else {
+      setStreakCount(1);
+      setActiveDaysThisWeek([true, false, false, false, false, false, false]);
+    }
+  };
+
+  const fetchUserActivityStats = async () => {
+    // 1. Instantly calculate from cached transactions in 0ms if available
+    const cachedTxns = await cacheService.get<any[]>(CACHE_KEYS.TRANSACTIONS);
+    if (cachedTxns && cachedTxns.length > 0) {
+      computeActivityStats(cachedTxns);
+    } else {
+      setLoadingStats(true);
+    }
+
+    // 2. Fetch fresh transactions silently in background
+    try {
+      const res = await api.get('/transactions/?limit=100');
+      const txns: any[] = res.data || [];
+      computeActivityStats(txns);
+      cacheService.set(CACHE_KEYS.TRANSACTIONS, txns).catch(() => {});
     } catch (e) {
       console.warn('Could not fetch activity stats:', e);
     } finally {

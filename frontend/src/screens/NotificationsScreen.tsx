@@ -1,28 +1,53 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../services/api';
 import { showCustomAlert } from '../store/alertStore';
+import { cacheService, CACHE_KEYS } from '../services/cacheService';
 
 export const NotificationsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchNotifications();
+    loadCachedNotifications();
+    fetchNotifications(false);
   }, []);
 
-  const fetchNotifications = async () => {
-    setLoading(true);
+  const loadCachedNotifications = async () => {
+    try {
+      const cached = await cacheService.get<any[]>(CACHE_KEYS.NOTIFICATIONS);
+      if (cached && cached.length > 0) {
+        setNotifications(cached);
+        setLoading(false);
+      }
+    } catch (e) {
+      console.warn('[Notifications] Cache load error:', e);
+    }
+  };
+
+  const fetchNotifications = async (isManualRefresh = false) => {
+    if (isManualRefresh) {
+      setRefreshing(true);
+    } else if (notifications.length === 0) {
+      setLoading(true);
+    }
     try {
       const response = await api.get('/notifications/');
-      setNotifications(response.data);
+      if (response?.data) {
+        setNotifications(response.data);
+        cacheService.set(CACHE_KEYS.NOTIFICATIONS, response.data).catch(() => {});
+      }
     } catch (e: any) {
       console.warn(e);
-      showCustomAlert('Load Error', 'Failed to retrieve notifications list.', 'error');
+      if (notifications.length === 0) {
+        showCustomAlert('Load Error', 'Failed to retrieve notifications list.', 'error');
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -87,6 +112,14 @@ export const NotificationsScreen: React.FC<{ navigation: any }> = ({ navigation 
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 20, 40) }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => fetchNotifications(true)}
+            tintColor="#2563eb"
+            colors={['#2563eb']}
+          />
+        }
         ListEmptyComponent={
           <View className="flex-1 items-center justify-center py-24">
             <View className="w-16 h-16 rounded-3xl bg-blue-50 items-center justify-center mb-3 border border-blue-100">

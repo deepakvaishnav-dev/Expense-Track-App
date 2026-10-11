@@ -15,6 +15,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { api } from '../services/api';
 import { DatePickerModal } from '../components/common';
 import { showCustomAlert } from '../store/alertStore';
+import { cacheService, CACHE_KEYS } from '../services/cacheService';
 
 export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
@@ -149,6 +150,13 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
           date: selectedDate.toISOString(),
         });
       }
+
+      // Invalidate caches so other screens immediately reload fresh data
+      cacheService.invalidateMultiple([
+        CACHE_KEYS.TRANSACTIONS,
+        CACHE_KEYS.DASHBOARD,
+        CACHE_KEYS.PROFILE_STATS,
+      ]).catch(() => {});
 
       // Reset the form fields to clear them
       reset({

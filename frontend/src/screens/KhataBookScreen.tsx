@@ -12,6 +12,7 @@ import {
   Platform,
   Share,
   Pressable,
+  RefreshControl,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +25,7 @@ import {
 } from '../services/khataService';
 import { showCustomAlert } from '../store/alertStore';
 import { DatePickerModal } from '../components/common';
+import { cacheService, CACHE_KEYS } from '../services/cacheService';
 
 export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
@@ -36,7 +38,9 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
     netBalance: 0,
     totalPersons: 0,
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'ALL' | 'RECEIVABLE' | 'PAYABLE' | 'SETTLED'>('ALL');
 
@@ -76,21 +80,55 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
   const [reminderModalVisible, setReminderModalVisible] = useState(false);
   const [personToRemind, setPersonToRemind] = useState<KhataPerson | null>(null);
 
+  // 1. Instant Cache Hydration: 0ms render from cache on mount
+  useEffect(() => {
+    loadCachedKhataData();
+  }, []);
+
+  const loadCachedKhataData = async () => {
+    try {
+      const [cachedPersons, cachedSum] = await Promise.all([
+        cacheService.get<KhataPerson[]>(CACHE_KEYS.KHATA_PERSONS),
+        cacheService.get<KhataSummary>(CACHE_KEYS.KHATA_SUMMARY),
+      ]);
+      if (cachedPersons && cachedPersons.length > 0) {
+        setPersons(cachedPersons);
+        setLoading(false);
+      }
+      if (cachedSum) {
+        setSummary(cachedSum);
+      }
+    } catch (e) {
+      console.warn('[KhataBook] Cache load error:', e);
+    }
+  };
+
   useFocusEffect(
     useCallback(() => {
-      loadData();
+      loadData(false);
     }, [])
   );
 
-  const loadData = async () => {
-    try {
+  const loadData = async (isManualRefresh = false) => {
+    if (isManualRefresh) {
+      setRefreshing(true);
+    } else if (persons.length === 0) {
       setLoading(true);
+    } else {
+      setIsSyncing(true);
+    }
+
+    try {
       const [personsList, sum] = await Promise.all([
         khataService.getPersons(),
         khataService.getSummary(),
       ]);
       setPersons(personsList);
       setSummary(sum);
+
+      // Update persistent cache
+      cacheService.set(CACHE_KEYS.KHATA_PERSONS, personsList).catch(() => {});
+      cacheService.set(CACHE_KEYS.KHATA_SUMMARY, sum).catch(() => {});
 
       if (selectedPerson) {
         const updatedP = personsList.find((p) => p.id === selectedPerson.id);
@@ -107,6 +145,8 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
       console.warn('Error loading accounts data:', e);
     } finally {
       setLoading(false);
+      setRefreshing(false);
+      setIsSyncing(false);
     }
   };
 
@@ -513,7 +553,18 @@ export const KhataBookScreen: React.FC<{ navigation: any; route?: any }> = ({ na
             </Text>
           </View>
         ) : (
-          <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            className="flex-1"
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => loadData(true)}
+                tintColor="#3b82f6"
+                colors={['#3b82f6']}
+              />
+            }
+          >
             {filteredPersons.map((person) => {
               const isReceivable = person.netBalance > 0;
               const isPayable = person.netBalance < 0;
