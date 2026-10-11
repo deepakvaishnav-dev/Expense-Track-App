@@ -100,7 +100,7 @@ async def list_transactions(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=500),
     category_id: Optional[UUID] = None,
     account_id: Optional[UUID] = None,
     start_date: Optional[datetime] = None,

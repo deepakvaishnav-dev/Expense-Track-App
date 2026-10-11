@@ -17,15 +17,28 @@ import { DatePickerModal } from '../components/common';
 import { showCustomAlert } from '../store/alertStore';
 import { cacheService, CACHE_KEYS } from '../services/cacheService';
 
+const DEFAULT_FALLBACK_ACCOUNTS = [
+  { id: 'acc_cash', name: 'Cash Wallet', type: 'Cash' },
+  { id: 'acc_bank', name: 'Bank Account', type: 'Bank' },
+];
+
+const DEFAULT_FALLBACK_CATEGORIES = [
+  { id: 'cat_bills', name: 'Bills', color: '#f59e0b', icon: 'bill' },
+  { id: 'cat_emi', name: 'EMI', color: '#6366f1', icon: 'emi' },
+  { id: 'cat_entertainment', name: 'Entertainment', color: '#8b5cf6', icon: 'entertainment' },
+  { id: 'cat_food', name: 'Food', color: '#ef4444', icon: 'food-fork-spoon' },
+  { id: 'cat_fuel', name: 'Fuel', color: '#06b6d4', icon: 'fuel' },
+];
+
 export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<ScrollView>(null);
   const isBottomFieldFocused = useRef(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [fetchingData, setFetchingData] = useState(true);
+  const [accounts, setAccounts] = useState<any[]>(DEFAULT_FALLBACK_ACCOUNTS);
+  const [categories, setCategories] = useState<any[]>(DEFAULT_FALLBACK_CATEGORIES);
+  const [fetchingData, setFetchingData] = useState(false);
   
   const transactionToEdit = route.params?.transaction;
   const [selectedDate, setSelectedDate] = useState<Date>(
@@ -35,14 +48,14 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
 
   const { control, handleSubmit, setValue, watch, formState: { errors }, reset } = useForm({
     defaultValues: {
-      amount: '',
-      merchant: '',
-      type: 'Expense',
-      categoryId: '',
-      accountId: '',
-      paymentMethod: 'UPI',
-      notes: '',
-      tagsInput: '',
+      amount: transactionToEdit ? String(transactionToEdit.amount) : '',
+      merchant: transactionToEdit?.merchant || '',
+      type: transactionToEdit?.type || 'Expense',
+      categoryId: transactionToEdit?.category_id || '',
+      accountId: transactionToEdit?.account_id || '',
+      paymentMethod: transactionToEdit?.payment_method || 'UPI',
+      notes: transactionToEdit?.notes || '',
+      tagsInput: transactionToEdit?.tags ? transactionToEdit.tags.join(', ') : '',
     }
   });
 
@@ -51,8 +64,32 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
   const selectedPaymentMethod = watch('paymentMethod');
 
   useEffect(() => {
+    loadCachedFormData();
     fetchFormData();
   }, []);
+
+  const loadCachedFormData = async () => {
+    try {
+      const [cachedAcc, cachedCat] = await Promise.all([
+        cacheService.get<any[]>(CACHE_KEYS.ACCOUNTS),
+        cacheService.get<any[]>(CACHE_KEYS.CATEGORIES),
+      ]);
+      if (cachedAcc && cachedAcc.length > 0) {
+        setAccounts(cachedAcc);
+        if (!transactionToEdit && !watch('accountId')) {
+          setValue('accountId', cachedAcc[0].id);
+        }
+      }
+      if (cachedCat && cachedCat.length > 0) {
+        setCategories(cachedCat);
+        if (!transactionToEdit && !watch('categoryId')) {
+          setValue('categoryId', cachedCat[0].id);
+        }
+      }
+    } catch (e) {
+      console.warn('[AddTransaction] Cache load error:', e);
+    }
+  };
 
   useEffect(() => {
     const showSub = Keyboard.addListener(
@@ -68,7 +105,7 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
     );
     const hideSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
+      (e) => {
         setKeyboardHeight(0);
       }
     );
@@ -82,39 +119,25 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
   const fetchFormData = async () => {
     try {
       const [accRes, catRes] = await Promise.all([
-        api.get('/accounts/'),
-        api.get('/categories/')
+        api.get('/accounts/').catch(() => null),
+        api.get('/categories/').catch(() => null)
       ]);
-      setAccounts(accRes.data);
-      setCategories(catRes.data);
-
-      if (transactionToEdit) {
-        // Prefill form values for editing
-        reset({
-          amount: String(transactionToEdit.amount),
-          merchant: transactionToEdit.merchant || '',
-          type: transactionToEdit.type || 'Expense',
-          categoryId: transactionToEdit.category_id || '',
-          accountId: transactionToEdit.account_id || '',
-          paymentMethod: transactionToEdit.payment_method || 'UPI',
-          notes: transactionToEdit.notes || '',
-          tagsInput: transactionToEdit.tags ? transactionToEdit.tags.join(', ') : '',
-        });
-      } else {
-        // Auto-select first account as default
-        if (accRes.data && accRes.data.length > 0) {
+      if (accRes?.data && accRes.data.length > 0) {
+        setAccounts(accRes.data);
+        cacheService.set(CACHE_KEYS.ACCOUNTS, accRes.data).catch(() => {});
+        if (!transactionToEdit && !watch('accountId')) {
           setValue('accountId', accRes.data[0].id);
         }
-        // Auto-select first category as default
-        if (catRes.data && catRes.data.length > 0) {
+      }
+      if (catRes?.data && catRes.data.length > 0) {
+        setCategories(catRes.data);
+        cacheService.set(CACHE_KEYS.CATEGORIES, catRes.data).catch(() => {});
+        if (!transactionToEdit && !watch('categoryId')) {
           setValue('categoryId', catRes.data[0].id);
         }
       }
     } catch (e: any) {
-      console.warn(e);
-      showCustomAlert('Load Error', 'Failed to retrieve accounts or categories lists.', 'error');
-    } finally {
-      setFetchingData(false);
+      console.warn('[AddTransaction] Fetch error:', e);
     }
   };
 
@@ -122,6 +145,17 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
     setLoading(true);
     try {
       const tags = data.tagsInput ? data.tagsInput.split(',').map((t: string) => t.trim()).filter((t: string) => t) : [];
+
+      let finalAccountId = data.accountId;
+      const realAcc = accounts.find((a) => !a.id.startsWith('acc_'));
+      if ((!finalAccountId || finalAccountId.startsWith('acc_')) && realAcc) {
+        finalAccountId = realAcc.id;
+      }
+      let finalCategoryId = data.categoryId || null;
+      const realCat = categories.find((c) => !c.id.startsWith('cat_'));
+      if (finalCategoryId && finalCategoryId.startsWith('cat_') && realCat) {
+        finalCategoryId = realCat.id;
+      }
       
       if (transactionToEdit) {
         // Update existing transaction
@@ -129,8 +163,8 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
           amount: parseFloat(data.amount),
           merchant: data.merchant.trim() || 'Manual Expense',
           type: data.type,
-          category_id: data.categoryId || null,
-          account_id: data.accountId,
+          category_id: finalCategoryId,
+          account_id: finalAccountId,
           payment_method: data.paymentMethod,
           notes: data.notes.trim() || null,
           tags: tags,
@@ -142,8 +176,8 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
           amount: parseFloat(data.amount),
           merchant: data.merchant.trim() || 'Manual Expense',
           type: data.type,
-          category_id: data.categoryId || null,
-          account_id: data.accountId,
+          category_id: finalCategoryId,
+          account_id: finalAccountId,
           payment_method: data.paymentMethod,
           notes: data.notes.trim() || null,
           tags: tags,
@@ -217,14 +251,6 @@ export const AddTransactionScreen: React.FC<{ route: any, navigation: any }> = (
       setLoading(false);
     }
   };
-
-  if (fetchingData) {
-    return (
-      <View className="flex-1 bg-white justify-center items-center">
-        <ActivityIndicator size="large" color="#3b82f6" />
-      </View>
-    );
-  }
 
   // Resolve emojis for category selector
   const getCategoryEmoji = (name: string) => {

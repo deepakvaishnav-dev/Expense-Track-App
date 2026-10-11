@@ -91,8 +91,8 @@ export const TransactionsListScreen: React.FC<{ navigation: any }> = ({ navigati
     }
 
     try {
-      // Build query parameters
-      let url = '/transactions/?limit=150';
+      // Build query parameters (max limit is 100 per backend validation)
+      let url = '/transactions/?limit=100';
       if (selectedCategory && selectedCategory !== 'All') {
         url += `&category_id=${selectedCategory}`;
       }
@@ -120,8 +120,9 @@ export const TransactionsListScreen: React.FC<{ navigation: any }> = ({ navigati
       }
     } catch (e) {
       console.warn('[Transactions] Fetch error:', e);
-      if (transactions.length === 0) {
-        showCustomAlert('Error', 'Failed to retrieve transactions list.', 'error');
+      // Never disrupt the user with a modal if cached transactions are already displayed or if it's a silent background sync
+      if (isManualRefresh && transactions.length === 0) {
+        showCustomAlert('Sync Notice', 'Could not refresh transactions. Displaying saved offline records.', 'info');
       }
     } finally {
       setLoading(false);

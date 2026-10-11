@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const CACHE_KEYS = {
   TRANSACTIONS: '@cache_transactions_list_v2',
   CATEGORIES: '@cache_categories_list_v2',
+  ACCOUNTS: '@cache_accounts_list_v2',
   DASHBOARD: '@cache_dashboard_data_v2',
   KHATA_PERSONS: '@cache_khata_persons_v2',
   KHATA_SUMMARY: '@cache_khata_summary_v2',
