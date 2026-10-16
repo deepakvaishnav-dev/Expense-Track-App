@@ -43,6 +43,7 @@ class User(Base):
     receipts = relationship("Receipt", back_populates="user", cascade="all, delete-orphan")
     ai_classification_logs = relationship("AIClassificationLog", back_populates="user", cascade="all, delete-orphan")
     password_reset_tokens = relationship("PasswordResetToken", back_populates="user", cascade="all, delete-orphan")
+    khata_persons = relationship("KhataPerson", back_populates="user", cascade="all, delete-orphan")
 
 
 class Account(Base):
@@ -249,3 +250,65 @@ class PasswordResetToken(Base):
 
     # Relationships
     user = relationship("User", back_populates="password_reset_tokens")
+
+
+class KhataPerson(Base):
+    __tablename__ = "khata_persons"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    phone = Column(String(50), nullable=True)
+    color = Column(String(20), default="#3B82F6", nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_khata_persons_user_id", "user_id"),
+        Index("ix_khata_persons_user_name", "user_id", "name"),
+        Index("ix_khata_persons_user_created", "user_id", desc("created_at")),
+    )
+
+    # Relationships
+    user = relationship("User", back_populates="khata_persons")
+    transactions = relationship(
+        "KhataTransaction",
+        back_populates="person",
+        cascade="all, delete-orphan",
+        order_by="desc(KhataTransaction.date)"
+    )
+
+
+class KhataTransaction(Base):
+    __tablename__ = "khata_transactions"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    person_id = Column(UUID(as_uuid=True), ForeignKey("khata_persons.id", ondelete="CASCADE"), nullable=False, index=True)
+    type = Column(String(20), nullable=False)  # 'GAVE', 'GOT', 'SETTLE'
+    settlement_type = Column(String(20), nullable=True)  # 'RECEIVED', 'PAID'
+    amount = Column(Numeric(12, 2), nullable=False)
+    date = Column(DateTime(timezone=True), nullable=False, index=True)
+    note = Column(Text, nullable=True)
+    due_date = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("ix_khata_txns_user_id_date", "user_id", desc("date")),
+        Index("ix_khata_txns_person_id_date", "person_id", desc("date")),
+        Index("ix_khata_txns_user_person", "user_id", "person_id"),
+        Index("ix_khata_txns_person_type", "person_id", "type"),
+        Index("ix_khata_txns_user_type_amt", "user_id", "type", "amount"),
+        Index("ix_khata_txns_person_type_amt", "person_id", "type", "amount"),
+    )
+
+    # Relationships
+    user = relationship("User")
+    person = relationship("KhataPerson", back_populates="transactions")
+
+    @property
+    def person_name(self) -> str:
+        return self.person.name if self.person else ""
+
+

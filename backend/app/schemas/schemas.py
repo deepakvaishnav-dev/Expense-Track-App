@@ -272,3 +272,96 @@ class ReportGenerateRequest(BaseModel):
     format: str = Field("pdf", description="Format: 'pdf' or 'csv'")
     start_date: datetime
     end_date: datetime
+
+
+# --- KHATA (ACCOUNTS BOOK) SCHEMAS ---
+
+class KhataPersonBase(BaseModel):
+    name: str
+    phone: Optional[str] = None
+    color: Optional[str] = "#3B82F6"
+
+class KhataPersonCreate(KhataPersonBase):
+    pass
+
+class KhataPersonUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    color: Optional[str] = None
+
+class KhataPersonResponse(BaseModel):
+    id: UUID
+    name: str
+    phone: Optional[str] = None
+    color: str
+    total_gave: float = 0.0
+    total_got: float = 0.0
+    net_balance: float = 0.0
+    last_txn_date: Optional[datetime] = None
+    last_note: Optional[str] = None
+    txn_count: int = 0
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class KhataTransactionBase(BaseModel):
+    type: str = Field(description="Must be 'GAVE', 'GOT', or 'SETTLE'")
+    amount: float = Field(gt=0, description="Transaction amount")
+    date: datetime
+    note: Optional[str] = None
+    due_date: Optional[datetime] = None
+
+class KhataTransactionCreate(KhataTransactionBase):
+    person_id: Optional[UUID] = None
+    person_name: str
+    phone: Optional[str] = None
+
+class KhataTransactionUpdate(BaseModel):
+    type: Optional[str] = None
+    amount: Optional[float] = None
+    note: Optional[str] = None
+    date: Optional[datetime] = None
+    due_date: Optional[datetime] = None
+
+class KhataTransactionResponse(BaseModel):
+    id: UUID
+    person_id: UUID
+    person_name: str
+    type: str
+    settlement_type: Optional[str] = None
+    amount: float
+    date: datetime
+    note: Optional[str] = None
+    due_date: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+class KhataSummaryResponse(BaseModel):
+    total_receivable: float
+    total_payable: float
+    net_balance: float
+    total_persons: int
+
+class KhataSettleRequest(BaseModel):
+    note: Optional[str] = "Account settled"
+
+class KhataTransactionCreateResponse(BaseModel):
+    transaction: KhataTransactionResponse
+    person: KhataPersonResponse
+
+class KhataBatchSyncItem(BaseModel):
+    person_name: str
+    phone: Optional[str] = None
+    type: str
+    amount: float
+    date: datetime
+    note: Optional[str] = None
+    due_date: Optional[datetime] = None
+
+class KhataBatchSyncRequest(BaseModel):
+    items: List[KhataBatchSyncItem]
+
+

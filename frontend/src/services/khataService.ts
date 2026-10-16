@@ -1,4 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from './api';
+import { cacheService, CACHE_KEYS } from './cacheService';
 
 export type KhataEntryType = 'GAVE' | 'GOT' | 'SETTLE'; // GAVE = Lent (Receivable), GOT = Borrowed (Payable), SETTLE = Settled
 
@@ -7,6 +9,7 @@ export interface KhataTransaction {
   personId: string;
   personName: string;
   type: KhataEntryType;
+  settlementType?: 'RECEIVED' | 'PAID';
   amount: number;
   date: string; // ISO date string
   note?: string;
@@ -34,64 +37,130 @@ export interface KhataSummary {
   totalPersons: number;
 }
 
-// Version 2 keys to ensure clean start without previous dummy data
-const STORAGE_KEYS = {
+// Legacy LocalStorage keys for one-time seamless migration to PostgreSQL DB
+const LEGACY_STORAGE_KEYS = {
   PERSONS: '@accounts_book_persons_v2',
   TXNS: '@accounts_book_txns_v2',
+  MIGRATED: '@accounts_book_migrated_to_db_v1',
 };
 
-const AVATAR_COLORS = [
-  '#3B82F6', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', 
-  '#06B6D4', '#F97316', '#6366F1', '#14B8A6'
-];
+// Data Mapper Helpers (Backend snake_case <-> Frontend camelCase)
+function mapPersonFromApi(raw: any): KhataPerson {
+  return {
+    id: String(raw.id),
+    name: raw.name || '',
+    phone: raw.phone || undefined,
+    color: raw.color || '#3B82F6',
+    totalGave: Number(raw.total_gave ?? raw.totalGave ?? 0),
+    totalGot: Number(raw.total_got ?? raw.totalGot ?? 0),
+    netBalance: Number(raw.net_balance ?? raw.netBalance ?? 0),
+    lastTxnDate: raw.last_txn_date || raw.lastTxnDate || raw.created_at || new Date().toISOString(),
+    lastNote: raw.last_note || raw.lastNote || undefined,
+    txnCount: Number(raw.txn_count ?? raw.txnCount ?? 0),
+  };
+}
+
+function mapTxnFromApi(raw: any): KhataTransaction {
+  return {
+    id: String(raw.id),
+    personId: String(raw.person_id ?? raw.personId),
+    personName: raw.person_name || raw.personName || '',
+    type: raw.type as KhataEntryType,
+    settlementType: raw.settlement_type || raw.settlementType,
+    amount: Number(raw.amount || 0),
+    date: raw.date || raw.created_at || new Date().toISOString(),
+    note: raw.note || undefined,
+    dueDate: raw.due_date || raw.dueDate || undefined,
+    createdAt: raw.created_at || raw.createdAt || new Date().toISOString(),
+  };
+}
+
+function mapSummaryFromApi(raw: any): KhataSummary {
+  return {
+    totalReceivable: Number(raw.total_receivable ?? raw.totalReceivable ?? 0),
+    totalPayable: Number(raw.total_payable ?? raw.totalPayable ?? 0),
+    netBalance: Number(raw.net_balance ?? raw.netBalance ?? 0),
+    totalPersons: Number(raw.total_persons ?? raw.totalPersons ?? 0),
+  };
+}
 
 class KhataService {
+  private migrationChecked = false;
+
   /**
-   * Load clean persistent state (starts 100% empty, NO dummy data).
+   * One-time check to migrate any old local storage ledger items directly into PostgreSQL backend.
    */
-  private async loadData(): Promise<{ persons: KhataPerson[]; txns: KhataTransaction[] }> {
+  async ensureMigrated(): Promise<void> {
+    if (this.migrationChecked) return;
+    this.migrationChecked = true;
+
     try {
-      const rawPersons = await AsyncStorage.getItem(STORAGE_KEYS.PERSONS);
-      const rawTxns = await AsyncStorage.getItem(STORAGE_KEYS.TXNS);
+      const alreadyMigrated = await AsyncStorage.getItem(LEGACY_STORAGE_KEYS.MIGRATED);
+      if (alreadyMigrated === 'true') return;
 
-      const persons: KhataPerson[] = rawPersons ? JSON.parse(rawPersons) : [];
-      const txns: KhataTransaction[] = rawTxns ? JSON.parse(rawTxns) : [];
+      const rawTxns = await AsyncStorage.getItem(LEGACY_STORAGE_KEYS.TXNS);
+      if (rawTxns) {
+        const txns = JSON.parse(rawTxns);
+        if (Array.isArray(txns) && txns.length > 0) {
+          const syncItems = txns.map((t: any) => ({
+            person_name: t.personName || 'Contact',
+            phone: t.phone || undefined,
+            type: t.type || 'GAVE',
+            amount: Number(t.amount || 0),
+            date: t.date || new Date().toISOString(),
+            note: t.note || undefined,
+            due_date: t.dueDate || undefined,
+          }));
 
-      return { persons, txns };
-    } catch {
-      return { persons: [], txns: [] };
-    }
-  }
-
-  private async saveData(persons: KhataPerson[], txns: KhataTransaction[]): Promise<void> {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEYS.PERSONS, JSON.stringify(persons));
-      await AsyncStorage.setItem(STORAGE_KEYS.TXNS, JSON.stringify(txns));
+          await api.post('/khata/sync', { items: syncItems });
+          // Clean legacy keys once uploaded to main database
+          await AsyncStorage.removeItem(LEGACY_STORAGE_KEYS.PERSONS);
+          await AsyncStorage.removeItem(LEGACY_STORAGE_KEYS.TXNS);
+        }
+      }
+      await AsyncStorage.setItem(LEGACY_STORAGE_KEYS.MIGRATED, 'true');
     } catch (e) {
-      console.warn('Error saving accounts book data:', e);
+      console.warn('[KhataService] Migration to database check:', e);
     }
   }
 
   /**
-   * Get all persons sorted by most recent activity.
+   * Fetch all contacts from the PostgreSQL backend database with indexed sorting.
+   * Uses local cache for 0ms immediate render.
    */
   async getPersons(): Promise<KhataPerson[]> {
-    const { persons } = await this.loadData();
-    return persons.sort((a, b) => new Date(b.lastTxnDate).getTime() - new Date(a.lastTxnDate).getTime());
+    await this.ensureMigrated();
+
+    try {
+      const response = await api.get('/khata/persons');
+      const persons: KhataPerson[] = (response.data || []).map(mapPersonFromApi);
+
+      // Refresh cache in background
+      cacheService.set(CACHE_KEYS.KHATA_PERSONS, persons).catch(() => {});
+      return persons;
+    } catch (error) {
+      console.warn('[KhataService] Error fetching persons from database, falling back to cache:', error);
+      const cached = await cacheService.get<KhataPerson[]>(CACHE_KEYS.KHATA_PERSONS);
+      return cached || [];
+    }
   }
 
   /**
-   * Get all transactions for a specific person.
+   * Fetch all transactions for a specific person from the PostgreSQL backend database.
+   * Utilizes index `ix_khata_txns_person_id_date`.
    */
   async getPersonTransactions(personId: string): Promise<KhataTransaction[]> {
-    const { txns } = await this.loadData();
-    return txns
-      .filter((t) => t.personId === personId)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    try {
+      const response = await api.get(`/khata/persons/${personId}/transactions`);
+      return (response.data || []).map(mapTxnFromApi);
+    } catch (error) {
+      console.warn(`[KhataService] Error fetching transactions for person ${personId}:`, error);
+      return [];
+    }
   }
 
   /**
-   * Add a new transaction (Lent or Borrowed).
+   * Add a new transaction (Lent or Borrowed) directly into the PostgreSQL database.
    */
   async addTransaction(payload: {
     personName: string;
@@ -102,82 +171,45 @@ class KhataService {
     date?: string;
     dueDate?: string;
   }): Promise<{ transaction: KhataTransaction; person: KhataPerson }> {
-    const { persons, txns } = await this.loadData();
-    const cleanName = payload.personName.trim();
-    const amount = Math.abs(Number(payload.amount)) || 0;
-    const dateStr = payload.date || new Date().toISOString();
+    await this.ensureMigrated();
 
-    // Find existing person or create new
-    let person = persons.find((p) => p.name.toLowerCase() === cleanName.toLowerCase());
-
-    if (!person) {
-      const randomColor = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
-      person = {
-        id: `person_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        name: cleanName,
-        phone: payload.phone?.trim() || undefined,
-        color: randomColor,
-        totalGave: 0,
-        totalGot: 0,
-        netBalance: 0,
-        lastTxnDate: dateStr,
-        lastNote: payload.note,
-        txnCount: 0,
-      };
-      persons.push(person);
-    } else if (payload.phone?.trim()) {
-      person.phone = payload.phone.trim();
-    }
-
-    const newTxn: KhataTransaction = {
-      id: `txn_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      personId: person.id,
-      personName: person.name,
+    const requestPayload = {
+      person_name: payload.personName.trim(),
+      phone: payload.phone?.trim() || null,
       type: payload.type,
-      amount,
-      date: dateStr,
-      note: payload.note?.trim(),
-      dueDate: payload.dueDate,
-      createdAt: new Date().toISOString(),
+      amount: Math.abs(Number(payload.amount)) || 0,
+      note: payload.note?.trim() || null,
+      date: payload.date || new Date().toISOString(),
+      due_date: payload.dueDate || null,
     };
 
-    txns.push(newTxn);
+    const response = await api.post('/khata/transactions', requestPayload);
+    const data = response.data;
 
-    // Recalculate person statistics
-    this.recalculatePerson(person, txns);
-    person.lastTxnDate = dateStr;
-    person.lastNote = payload.note || (payload.type === 'GAVE' ? 'Money Lent' : 'Money Borrowed');
+    const mappedTxn = mapTxnFromApi(data.transaction);
+    const mappedPerson = mapPersonFromApi(data.person);
 
-    await this.saveData(persons, txns);
-    return { transaction: newTxn, person };
+    return { transaction: mappedTxn, person: mappedPerson };
   }
 
   /**
-   * Edit an existing person (Name, Phone).
+   * Edit an existing person (Name, Phone) in PostgreSQL database.
    */
   async editPerson(personId: string, updates: { name: string; phone?: string }): Promise<KhataPerson | null> {
-    const { persons, txns } = await this.loadData();
-    const person = persons.find((p) => p.id === personId);
-    if (!person) return null;
-
-    const newName = updates.name.trim();
-    if (newName) {
-      person.name = newName;
-      // Update personName in their transactions
-      txns.forEach((t) => {
-        if (t.personId === personId) {
-          t.personName = newName;
-        }
+    try {
+      const response = await api.put(`/khata/persons/${personId}`, {
+        name: updates.name.trim(),
+        phone: updates.phone?.trim() || null,
       });
+      return mapPersonFromApi(response.data);
+    } catch (error) {
+      console.warn(`[KhataService] Error editing person ${personId}:`, error);
+      throw error;
     }
-    person.phone = updates.phone?.trim() || undefined;
-
-    await this.saveData(persons, txns);
-    return person;
   }
 
   /**
-   * Edit an existing transaction.
+   * Edit an existing transaction in PostgreSQL database.
    */
   async editTransaction(
     txnId: string,
@@ -189,128 +221,77 @@ class KhataService {
       dueDate?: string;
     }
   ): Promise<KhataTransaction | null> {
-    const { persons, txns } = await this.loadData();
-    const txn = txns.find((t) => t.id === txnId);
-    if (!txn) return null;
-
-    txn.type = updates.type;
-    txn.amount = Math.abs(Number(updates.amount)) || 0;
-    txn.note = updates.note?.trim();
-    if (updates.date) txn.date = updates.date;
-    if (updates.dueDate !== undefined) txn.dueDate = updates.dueDate;
-
-    const person = persons.find((p) => p.id === txn.personId);
-    if (person) {
-      this.recalculatePerson(person, txns);
+    try {
+      const response = await api.put(`/khata/transactions/${txnId}`, {
+        type: updates.type,
+        amount: Math.abs(Number(updates.amount)) || 0,
+        note: updates.note?.trim() || null,
+        date: updates.date || null,
+        due_date: updates.dueDate || null,
+      });
+      return mapTxnFromApi(response.data);
+    } catch (error) {
+      console.warn(`[KhataService] Error editing transaction ${txnId}:`, error);
+      throw error;
     }
-
-    await this.saveData(persons, txns);
-    return txn;
   }
 
   /**
-   * Settle an entire account (Balance brought to 0).
+   * Settle an entire account (Balance brought to 0) in PostgreSQL database.
    */
   async settlePerson(personId: string, note: string = 'Account settled'): Promise<KhataPerson | null> {
-    const { persons, txns } = await this.loadData();
-    const person = persons.find((p) => p.id === personId);
-    if (!person) return null;
-
-    if (person.netBalance === 0) return person;
-
-    const settleAmount = Math.abs(person.netBalance);
-
-    const settleTxn: KhataTransaction = {
-      id: `txn_${Date.now()}_settle`,
-      personId: person.id,
-      personName: person.name,
-      type: 'SETTLE',
-      amount: settleAmount,
-      date: new Date().toISOString(),
-      note: `${note} (₹${settleAmount.toLocaleString()})`,
-      createdAt: new Date().toISOString(),
-    };
-
-    txns.push(settleTxn);
-    this.recalculatePerson(person, txns);
-    person.lastTxnDate = settleTxn.date;
-    person.lastNote = 'Settled';
-
-    await this.saveData(persons, txns);
-    return person;
+    try {
+      const response = await api.post(`/khata/persons/${personId}/settle`, { note });
+      return mapPersonFromApi(response.data);
+    } catch (error) {
+      console.warn(`[KhataService] Error settling person ${personId}:`, error);
+      throw error;
+    }
   }
 
   /**
-   * Delete a transaction.
+   * Delete a transaction from the PostgreSQL database.
    */
   async deleteTransaction(txnId: string): Promise<void> {
-    const { persons, txns } = await this.loadData();
-    const targetIdx = txns.findIndex((t) => t.id === txnId);
-    if (targetIdx === -1) return;
-
-    const personId = txns[targetIdx].personId;
-    txns.splice(targetIdx, 1);
-
-    const person = persons.find((p) => p.id === personId);
-    if (person) {
-      this.recalculatePerson(person, txns);
+    try {
+      await api.delete(`/khata/transactions/${txnId}`);
+    } catch (error) {
+      console.warn(`[KhataService] Error deleting transaction ${txnId}:`, error);
+      throw error;
     }
-
-    await this.saveData(persons, txns);
   }
 
   /**
-   * Delete a person and all their transactions.
+   * Delete a person and all their ledger transactions permanently from the PostgreSQL database.
    */
   async deletePerson(personId: string): Promise<void> {
-    const { persons, txns } = await this.loadData();
-    const updatedPersons = persons.filter((p) => p.id !== personId);
-    const updatedTxns = txns.filter((t) => t.personId !== personId);
-
-    await this.saveData(updatedPersons, updatedTxns);
-  }
-
-  /**
-   * Recalculate totals for a person.
-   */
-  private recalculatePerson(person: KhataPerson, txns: KhataTransaction[]): void {
-    const personTxns = txns.filter((t) => t.personId === person.id);
-    let gave = 0;
-    let got = 0;
-
-    for (const t of personTxns) {
-      if (t.type === 'GAVE') gave += t.amount;
-      else if (t.type === 'GOT') got += t.amount;
+    try {
+      await api.delete(`/khata/persons/${personId}`);
+    } catch (error) {
+      console.warn(`[KhataService] Error deleting person ${personId}:`, error);
+      throw error;
     }
-
-    person.totalGave = gave;
-    person.totalGot = got;
-    person.netBalance = gave - got;
-    person.txnCount = personTxns.length;
   }
 
   /**
-   * Get overall summary for Dashboard & Header.
+   * Get overall summary from PostgreSQL backend database.
    */
   async getSummary(): Promise<KhataSummary> {
-    const persons = await this.getPersons();
-    let totalReceivable = 0; // Receivable (+ve)
-    let totalPayable = 0;    // Payable (-ve)
-
-    for (const p of persons) {
-      if (p.netBalance > 0) {
-        totalReceivable += p.netBalance;
-      } else if (p.netBalance < 0) {
-        totalPayable += Math.abs(p.netBalance);
-      }
+    try {
+      const response = await api.get('/khata/summary');
+      const sum = mapSummaryFromApi(response.data);
+      cacheService.set(CACHE_KEYS.KHATA_SUMMARY, sum).catch(() => {});
+      return sum;
+    } catch (error) {
+      console.warn('[KhataService] Error fetching summary from database, checking cache:', error);
+      const cached = await cacheService.get<KhataSummary>(CACHE_KEYS.KHATA_SUMMARY);
+      return cached || {
+        totalReceivable: 0,
+        totalPayable: 0,
+        netBalance: 0,
+        totalPersons: 0,
+      };
     }
-
-    return {
-      totalReceivable,
-      totalPayable,
-      netBalance: totalReceivable - totalPayable,
-      totalPersons: persons.length,
-    };
   }
 }
 

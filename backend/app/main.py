@@ -25,7 +25,8 @@ from app.routers import (
     analytics,
     admin,
     ai,
-    media
+    media,
+    khata
 )
 
 # Initialize slowapi Rate Limiter
@@ -115,6 +116,7 @@ app.include_router(analytics.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(ai.router, prefix="/api")
 app.include_router(media.router, prefix="/api")
+app.include_router(khata.router, prefix="/api")
 
 @app.get("/health")
 @app.get("/api/health")
